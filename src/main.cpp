@@ -3,6 +3,7 @@
 #include <iostream>
 #include <memory>
 #include <string>
+#include <string.h>
 
 #include <ast.h>
 
@@ -24,7 +25,11 @@ int main(int argc, const char *argv[]) {
   auto ret = yyparse(ast);
   assert(!ret);
 
-  ast->dump();
-  cout << endl;
+  if (strcmp(mode, "-koopa") == 0) {
+    FILE *out = freopen(output, "w", stdout);
+    assert(out);
+    ast->dump_koopa();
+  }
+
   return 0;
 }
