@@ -1,6 +1,7 @@
 %code requires {
-    #include <memory>
-    #include <string>
+  #include <memory>
+  #include <string>
+  #include <ast.h>
 }
 
 %{
@@ -16,72 +17,87 @@
 #include <iostream>
 #include <memory>
 #include <string>
+#include <ast.h>
 
 int yylex();
-void yyerror(std::unique_ptr<std::string> &ast, const char *s);
+void yyerror(std::unique_ptr<BaseAST> &ast, const char *s);
 
 using namespace std;
 
 %}
 
-%parse-param { std::unique_ptr<std::string> &ast }
+// parser func yyparse's & yyerror's arguments
+%parse-param { std::unique_ptr<BaseAST> &ast }
 
+// definition of yylval as union, where lexer returns token's attribute value
+// NOTICE that we don't use unique ptr in union, since it causes bugs.
+// The parent node in AST should be responsible in making unique ptr to children.
 %union {
-    std::string *str_val;
-    int int_val;
+  std::string *str_val;
+  int int_val;
+  BaseAST *ast_val;
 }
 
+// manifest constant for lexer, representing terminating token
 %token INT RETURN
 %token <str_val> IDENT
 %token <int_val> INT_CONST
 
-%type <str_val> FuncDef FuncType Block Stmt Number
+// Non-terminating tokens
+%type <ast_val> FuncDef FuncType Block Stmt
+%type <int_val> Number
 
 %%
 
 CompUnit
   : FuncDef {
-    ast = unique_ptr<string>($1);
+    auto comp_unit = make_unique<CompUnitAST>();
+    comp_unit->func_def = unique_ptr<BaseAST>($1);
+    ast = move(comp_unit);
   }
   ;
 
 FuncDef
   : FuncType IDENT '(' ')' Block {
-    auto type = unique_ptr<string>($1);
-    auto ident = unique_ptr<string>($2);
-    auto block = unique_ptr<string>($5);
-    $$ = new string(*type + " " + *ident + " " + *block);
+    auto ast = new FuncDefAST();
+    ast->func_type = unique_ptr<BaseAST>($1);
+    ast->ident = *unique_ptr<string>($2);
+    ast->block = unique_ptr<BaseAST>($5);
+    $$ = ast;
   }
   ;
 
 FuncType
   : INT {
-    $$ = new string("int");
+    auto ast = new FuncTypeAST();
+    $$ = ast;
   }
   ;
 
 Block
   : '{' Stmt '}' {
-    auto stmt = unique_ptr<string>($2);
-    $$ = new string("{ " + *stmt + " }");
+    auto ast = new BlockAST();
+    ast->stmt = unique_ptr<BaseAST>($2);
+    $$ = ast;
   }
   ;
 
 Stmt
   : RETURN Number ';' {
-    auto number = unique_ptr<string>($2);
-    $$ = new string("return " + *number + ";");
+    auto ast = new StmtAST();
+    ast->number = $2;
+    $$ = ast;
   }
   ;
 
 Number
   : INT_CONST {
-    $$ = new string(to_string($1));
+    $$ = $1;
   }
   ;
 
 %%
 
-void yyerror(unique_ptr<string> &ast, const char *s) {
+void yyerror(std::unique_ptr<BaseAST> &ast, const char *s) {
   cerr << "error: " << s << endl;
 }

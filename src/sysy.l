@@ -7,16 +7,18 @@
  * LEXER
  **********************************************************************/
 
-// Global settings, which will be added to flex source code
+// Global settings, which will be added to flex' C source code
 
 #include <cstdlib>
 #include <string>
 
-#include "sysy.tab.hpp"  // token from Bison header files
+#include "sysy.tab.hpp"  // manifest constant from Bison header files
 
 using namespace std;
 
 %}
+
+/* Regex definitions */
 
 WhiteSpace      [ \t\n\r]*
 LineComment     "//".*
