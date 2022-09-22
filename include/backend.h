@@ -18,8 +18,8 @@ class KoopaRiscvBackend {
 
    private:
     koopa_raw_program_builder_t builder;
-    int dump_koopa_raw_slice(const koopa_raw_slice_t slice);
-    int dump_koopa_raw_value(const koopa_raw_value_t value);
-    int dump_koopa_raw_function(const koopa_raw_function_t func);
-    int dump_koopa_raw_basic_block(const koopa_raw_basic_block_t bb);
+    int dump_koopa_raw_slice(const koopa_raw_slice_t &slice);
+    int dump_koopa_raw_value(const koopa_raw_value_t &value);
+    int dump_koopa_raw_function(const koopa_raw_function_t &func);
+    int dump_koopa_raw_basic_block(const koopa_raw_basic_block_t &bb);
 };

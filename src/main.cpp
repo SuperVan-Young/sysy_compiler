@@ -30,7 +30,7 @@ int main(int argc, const char *argv[]) {
 
     // dumping koopa IR
     std::fstream out;
-    const std::string koopa_log = "koopa.txt";
+    const std::string koopa_log = ".koopa.txt";
     if (mode == "-koopa")
         out.open(output, ios::out);
     else

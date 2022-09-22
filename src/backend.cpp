@@ -10,7 +10,6 @@ KoopaRiscvBackend::KoopaRiscvBackend(const char *koopa_file, const char *riscv_f
     koopa_delete_program(program);
 
     // open output file
-    std::fstream out;
     out.open(riscv_file, std::ios::out);
     assert(out.is_open());
 }
@@ -23,7 +22,8 @@ KoopaRiscvBackend::~KoopaRiscvBackend() {
 int KoopaRiscvBackend::dump_riscv() {
     out << "  .text" << std::endl;
     out << "  .globl main" << std::endl;
-    dump_koopa_raw_slice(raw.funcs);
+    int ret = dump_koopa_raw_slice(raw.funcs);
+    return ret;
 }
 
 /**
@@ -33,7 +33,7 @@ int KoopaRiscvBackend::dump_riscv() {
  * @param slice 
  * @return int 
  */
-int KoopaRiscvBackend::dump_koopa_raw_slice(const koopa_raw_slice_t slice) {
+int KoopaRiscvBackend::dump_koopa_raw_slice(const koopa_raw_slice_t &slice) {
     for (size_t i = 0; i < slice.len; i++) {
         const void *p = slice.buffer[i];
         int ret;
@@ -58,7 +58,7 @@ int KoopaRiscvBackend::dump_koopa_raw_slice(const koopa_raw_slice_t slice) {
  * @param value 
  * @return int 
  */
-int KoopaRiscvBackend::dump_koopa_raw_value(const koopa_raw_value_t value) {
+int KoopaRiscvBackend::dump_koopa_raw_value(const koopa_raw_value_t &value) {
     int ret;
     auto tag = value->kind.tag;
     if (tag == KOOPA_RVT_RETURN)  {
@@ -67,8 +67,8 @@ int KoopaRiscvBackend::dump_koopa_raw_value(const koopa_raw_value_t value) {
         int32_t int_val = ret_value->kind.data.integer.value;
         std::cerr << int_val;
 
-        out << "li a0, 0" << std::endl;
-        out << "ret" << std::endl;
+        out << "  li a0, " << int_val << std::endl;
+        out << "  ret" << std::endl;
         ret = 0;
     } else {
         ret = -1;
@@ -76,13 +76,13 @@ int KoopaRiscvBackend::dump_koopa_raw_value(const koopa_raw_value_t value) {
     return ret;
 }
 
-int KoopaRiscvBackend::dump_koopa_raw_function(const koopa_raw_function_t func) {
-    out << func->name << ":" << std::endl;
+int KoopaRiscvBackend::dump_koopa_raw_function(const koopa_raw_function_t &func) {
+    out << func->name + 1 << ":" << std::endl;
     int ret = dump_koopa_raw_slice(func->bbs);
     return ret;
 }
 
-int KoopaRiscvBackend::dump_koopa_raw_basic_block(const koopa_raw_basic_block_t bb) {
+int KoopaRiscvBackend::dump_koopa_raw_basic_block(const koopa_raw_basic_block_t &bb) {
     int ret = dump_koopa_raw_slice(bb->insts);
     return ret;
 }
