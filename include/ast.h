@@ -8,7 +8,7 @@ class BaseAST {
     virtual ~BaseAST() = default;
 
     virtual void dump() const = 0;
-    virtual void dump_koopa() const = 0;
+    virtual void dump_koopa(std::ostream &out) const = 0;
 };
 
 class CompUnitAST : public BaseAST {
@@ -16,7 +16,7 @@ class CompUnitAST : public BaseAST {
     std::unique_ptr<BaseAST> func_def;
 
     void dump() const override;
-    void dump_koopa() const override;
+    void dump_koopa(std::ostream &out) const override;
 };
 
 class FuncDefAST : public BaseAST {
@@ -26,12 +26,12 @@ class FuncDefAST : public BaseAST {
     std::unique_ptr<BaseAST> block;
 
     void dump() const override;
-    void dump_koopa() const override;
+    void dump_koopa(std::ostream &out) const override;
 };
 
 class FuncTypeAST : public BaseAST {
     void dump() const override;
-    void dump_koopa() const override;
+    void dump_koopa(std::ostream &out) const override;
 };
 
 class BlockAST : public BaseAST {
@@ -39,7 +39,7 @@ class BlockAST : public BaseAST {
     std::unique_ptr<BaseAST> stmt;
 
     void dump() const override;
-    void dump_koopa() const override;
+    void dump_koopa(std::ostream &out) const override;
 };
 
 class StmtAST : public BaseAST {
@@ -47,5 +47,5 @@ class StmtAST : public BaseAST {
     int number;
 
     void dump() const override;
-    void dump_koopa() const override;
+    void dump_koopa(std::ostream &out) const override;
 };

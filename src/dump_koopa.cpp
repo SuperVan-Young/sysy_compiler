@@ -1,29 +1,29 @@
 #include <ast.h>
 
-void CompUnitAST::dump_koopa() const {
-    func_def->dump_koopa();
+void CompUnitAST::dump_koopa(std::ostream &out) const {
+    func_def->dump_koopa(out);
 }
 
-void FuncDefAST::dump_koopa() const {
-    std::cout << "fun @" << ident;
-    std::cout << "(): ";  // TODO: add params
-    func_type->dump_koopa();
-    std::cout << " {" << std::endl;
-    std::cout << "\%entry:" << std::endl;
-    block->dump_koopa();
-    std::cout << "}" << std::endl;
+void FuncDefAST::dump_koopa(std::ostream &out) const {
+    out << "fun @" << ident;
+    out << "(): ";  // TODO: add params
+    func_type->dump_koopa(out);
+    out << " {" << std::endl;
+    out << "\%entry:" << std::endl;
+    block->dump_koopa(out);
+    out << "}" << std::endl;
 }
 
-void FuncTypeAST::dump_koopa() const {
-    std::cout << "i32";
+void FuncTypeAST::dump_koopa(std::ostream &out) const {
+    out << "i32";
 }
 
-void BlockAST::dump_koopa() const {
-    stmt->dump_koopa();
+void BlockAST::dump_koopa(std::ostream &out) const {
+    stmt->dump_koopa(out);
 }
 
-void StmtAST::dump_koopa() const {
-    std::cout << "  ";
-    std::cout << "ret " << number;
-    std::cout << std::endl;
+void StmtAST::dump_koopa(std::ostream &out) const {
+    out << "  ";
+    out << "ret " << number;
+    out << std::endl;
 }

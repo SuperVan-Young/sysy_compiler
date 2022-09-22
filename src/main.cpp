@@ -1,11 +1,11 @@
+#include <ast.h>
+
 #include <cassert>
 #include <cstdio>
+#include <fstream>
 #include <iostream>
 #include <memory>
 #include <string>
-#include <string.h>
-
-#include <ast.h>
 
 using namespace std;
 
@@ -13,23 +13,34 @@ extern FILE *yyin;
 extern int yyparse(unique_ptr<BaseAST> &ast);
 
 int main(int argc, const char *argv[]) {
-  assert(argc == 5);
-  auto mode = argv[1];
-  auto input = argv[2];
-  auto output = argv[4];
+    assert(argc == 5);
+    auto mode = std::string(argv[1]);
+    auto input = std::string(argv[2]);
+    auto output = std::string(argv[4]);
 
-  yyin = fopen(input, "r");
-  assert(yyin);
+    yyin = fopen(input.c_str(), "r");
+    assert(yyin);
 
-  unique_ptr<BaseAST> ast;
-  auto ret = yyparse(ast);
-  assert(!ret);
+    // lex & parse
+    unique_ptr<BaseAST> ast;
+    auto ret = yyparse(ast);
+    assert(!ret);
 
-  if (strcmp(mode, "-koopa") == 0) {
-    FILE *out = freopen(output, "w", stdout);
-    assert(out);
-    ast->dump_koopa();
-  }
+    // dumping koopa IR
+    std::fstream out;
+    const std::string koopa_log = "koopa.txt";
+    if (mode == "-koopa")
+        out.open(output, ios::out);
+    else
+        out.open(koopa_log, ios::out);
+    assert(out.is_open());
+    ast->dump_koopa(out);
+    out.close();
 
-  return 0;
+    // dumping riscv
+    if (mode == "-riscv") {
+        // TODO: add compiler backend
+    }
+
+    return 0;
 }
