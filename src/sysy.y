@@ -21,6 +21,7 @@
 
 int yylex();
 void yyerror(std::unique_ptr<BaseAST> &ast, const char *s);
+extern int yylineno;
 
 using namespace std;
 
@@ -99,5 +100,5 @@ Number
 %%
 
 void yyerror(std::unique_ptr<BaseAST> &ast, const char *s) {
-  cerr << "error: " << s << endl;
+  cerr << "line " << yylineno << ": " << s << endl;
 }

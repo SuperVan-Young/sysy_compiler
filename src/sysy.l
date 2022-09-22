@@ -1,6 +1,7 @@
 %option noyywrap
 %option nounput
 %option noinput
+%option yylineno
 
 %{
 /**********************************************************************
@@ -22,7 +23,7 @@ using namespace std;
 
 WhiteSpace      [ \t\n\r]*
 LineComment     "//".*
-BlockComment    "/*"([^*]|[\r\n]|(\*+([^*\]|[\r\n])))*\*+"/"
+BlockComment    "/*"([^*]|[\r\n]|(\*+([^*/]|[\r\n])))*\*+"/"
 
 Identifier      [a-zA-Z_][a-zA-Z0-9_]*
 
