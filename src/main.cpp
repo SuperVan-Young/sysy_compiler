@@ -1,11 +1,13 @@
-#include <ast.h>
 
 #include <cassert>
 #include <cstdio>
+#include <cstring>
 #include <fstream>
 #include <iostream>
 #include <memory>
-#include <string>
+
+#include "ast.h"
+#include "backend.h"
 
 using namespace std;
 
@@ -39,7 +41,9 @@ int main(int argc, const char *argv[]) {
 
     // dumping riscv
     if (mode == "-riscv") {
-        // TODO: add compiler backend
+        KoopaRiscvBackend backend(koopa_log.c_str(), output.c_str());
+        int ret = backend.dump_riscv();
+        assert(!ret);
     }
 
     return 0;
