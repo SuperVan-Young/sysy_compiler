@@ -21,8 +21,8 @@ using namespace std;
 /* Regex definitions */
 
 WhiteSpace      [ \t\n\r]*
-LineComment     "//"[^\n]*
-BlockComment    \/\*.*\*\/
+LineComment     "//".*
+BlockComment    "/*".*"*/"
 
 Identifier      [a-zA-Z_][a-zA-Z0-9_]*
 
