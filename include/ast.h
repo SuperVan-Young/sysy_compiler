@@ -3,20 +3,20 @@
 #include <memory>
 #include <string>
 
+#include "irgen.h"
+
 class BaseAST {
    public:
     virtual ~BaseAST() = default;
 
-    virtual void dump() const = 0;
-    virtual void dump_koopa(std::ostream &out) const = 0;
+    virtual void dump_koopa(IRGenerator &irgen, std::ostream &out) const = 0;
 };
 
 class CompUnitAST : public BaseAST {
    public:
     std::unique_ptr<BaseAST> func_def;
 
-    void dump() const override;
-    void dump_koopa(std::ostream &out) const override;
+    void dump_koopa(IRGenerator &irgen, std::ostream &out) const override;
 };
 
 class FuncDefAST : public BaseAST {
@@ -25,27 +25,23 @@ class FuncDefAST : public BaseAST {
     std::string ident;
     std::unique_ptr<BaseAST> block;
 
-    void dump() const override;
-    void dump_koopa(std::ostream &out) const override;
+    void dump_koopa(IRGenerator &irgen, std::ostream &out) const override;
 };
 
 class FuncTypeAST : public BaseAST {
-    void dump() const override;
-    void dump_koopa(std::ostream &out) const override;
+    void dump_koopa(IRGenerator &irgen, std::ostream &out) const override;
 };
 
 class BlockAST : public BaseAST {
    public:
     std::unique_ptr<BaseAST> stmt;
 
-    void dump() const override;
-    void dump_koopa(std::ostream &out) const override;
+    void dump_koopa(IRGenerator &irgen, std::ostream &out) const override;
 };
 
 class StmtAST : public BaseAST {
    public:
     int number;
 
-    void dump() const override;
-    void dump_koopa(std::ostream &out) const override;
+    void dump_koopa(IRGenerator &irgen, std::ostream &out) const override;
 };

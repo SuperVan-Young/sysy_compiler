@@ -36,7 +36,8 @@ int main(int argc, const char *argv[]) {
     else
         out.open(koopa_log, ios::out);
     assert(out.is_open());
-    ast->dump_koopa(out);
+    IRGenerator irgen;
+    ast->dump_koopa(irgen, out);
     out.close();
 
     // dumping riscv
