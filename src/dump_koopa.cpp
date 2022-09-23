@@ -30,8 +30,78 @@ void StmtAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
 }
 
 void ExpAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
-    unary_exp->dump_koopa(irgen, out);
+    add_exp->dump_koopa(irgen, out);
     return; // needless to operate on stack
+}
+
+void AddExpAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
+    if (type == ADD_EXP_AST_TYPE_0) {
+        mul_exp->dump_koopa(irgen, out);
+        return;  // needless to operate on stack
+    } else if (type == ADD_EXP_AST_TYPE_1) {
+        add_exp->dump_koopa(irgen, out);
+        mul_exp->dump_koopa(irgen, out);
+
+        // fetch sub exp values
+        auto mul_val = irgen.stack_val.top();
+        irgen.stack_val.pop();
+        auto add_val = irgen.stack_val.top();
+        irgen.stack_val.pop();
+
+        // dump exp w.r.t. op
+        std::string exp_val;
+        exp_val = irgen.new_val();
+        out << "  " << exp_val << " = ";
+        if (op == "+")
+            out << "add ";
+        else if (op == "-")
+            out << "sub ";
+        else {
+            std::cerr << "Invalid op: " << op << std::endl;
+            assert(false);
+        }
+        out << add_val << ", " <<  mul_val << std::endl;
+        
+        irgen.stack_val.push(exp_val);
+    } else {
+        assert(false);
+    }
+}
+
+void MulExpAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
+    if (type == MUL_EXP_AST_TYPE_0) {
+        unary_exp->dump_koopa(irgen, out);
+        return;  // needless to operate on stack_val
+    } else if (type == MUL_EXP_AST_TYPE_1) {
+        mul_exp->dump_koopa(irgen, out);
+        unary_exp->dump_koopa(irgen, out);
+
+        // fetch sub exp values
+        auto unary_val = irgen.stack_val.top();
+        irgen.stack_val.pop();
+        auto mul_val = irgen.stack_val.top();
+        irgen.stack_val.pop();
+
+        // dump exp w.r.t. op
+        std::string exp_val;
+        exp_val = irgen.new_val();
+        out << "  " << exp_val << " = ";
+        if (op == "*") {
+            out << "mul ";
+        } else if (op == "/") {
+            out << "div ";
+        } else if (op == "%") {
+            out << "mod ";
+        } else {
+            std::cerr << "Invalid op: " << op << std::endl;
+            assert(false);
+        }
+        out << mul_val << ", " <<  unary_val << std::endl;
+        
+        irgen.stack_val.push(exp_val);
+    } else {
+        assert(false);
+    }
 }
 
 void UnaryExpAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
