@@ -24,6 +24,9 @@ void BlockAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
 
 void StmtAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
     exp->dump_koopa(irgen, out);
+    auto exp = irgen.stack_val.top();
+    irgen.stack_val.pop();
+    out << "  ret " << exp << std::endl;
 }
 
 void ExpAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {

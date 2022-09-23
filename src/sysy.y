@@ -101,15 +101,15 @@ Exp
 
 PrimaryExp
   : '(' Exp ')' {
-    auto ast = new PrimaryExp();
-    ast->type = PRIMARY_EXP_TYPE_0;
-    ast->exp = unique_ptr<BaseAST>($1);
+    auto ast = new PrimaryExpAST();
+    ast->type = PRIMARY_EXP_AST_TYPE_0;
+    ast->exp = unique_ptr<BaseAST>($2);
     $$ = ast;
 
   }
   | Number {
-    auto ast = new PrimaryExp();
-    ast->type = PRIMARY_EXP_TYPE_1;
+    auto ast = new PrimaryExpAST();
+    ast->type = PRIMARY_EXP_AST_TYPE_1;
     ast->number = $1;
     $$ = ast;
   }
@@ -117,14 +117,14 @@ PrimaryExp
 
 UnaryExp
   : PrimaryExp {
-    auto ast = new UnaryExp();
-    ast->type = UNARY_EXP_TYPE_0;
+    auto ast = new UnaryExpAST();
+    ast->type = UNARY_EXP_AST_TYPE_0;
     ast->primary_exp = unique_ptr<BaseAST>($1);
     $$ = ast;
   }
   | UnaryOp UnaryExp {
-    auto ast = new UnaryExp();
-    ast->type = UNARY_EXP_TYPE_1;
+    auto ast = new UnaryExpAST();
+    ast->type = UNARY_EXP_AST_TYPE_1;
     ast->unary_op = unique_ptr<BaseAST>($1);
     ast->unary_exp = unique_ptr<BaseAST>($2);
     $$ = ast;
@@ -133,10 +133,21 @@ UnaryExp
 
 UnaryOp
   : '+' {
-    auto ast = new UnaryOp();
+    auto ast = new UnaryOpAST();
     ast->op = "+";
     $$ = ast;
   }
+  | '-' {
+    auto ast = new UnaryOpAST();
+    ast->op = "-";
+    $$ = ast;
+  }
+  | '!' {
+    auto ast = new UnaryOpAST();
+    ast->op = "!";
+    $$ = ast;
+  }
+  ;
 
 Number
   : INT_CONST {

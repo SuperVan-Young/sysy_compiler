@@ -11,8 +11,12 @@ class IRGenerator {
    public:
     int cnt_val;
     std::stack<std::string> stack_val;
-
     int cnt_block;
+
+    IRGenerator() {
+        cnt_val = 0;
+        cnt_block = 0;
+    }
 
     std::string new_val() {
         auto val = cnt_val++;
