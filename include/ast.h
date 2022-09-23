@@ -49,37 +49,22 @@ class StmtAST : public BaseAST {
 
 class ExpAST : public BaseAST {
    public:
-    std::unique_ptr<BaseAST> add_exp;
+    std::unique_ptr<BaseAST> binary_exp;
 
     void dump_koopa(IRGenerator &irgen, std::ostream &out) const override;
 };
 
 typedef enum {
-    ADD_EXP_AST_TYPE_0 = 0,  // mul_exp
-    ADD_EXP_AST_TYPE_1       // add_exp op mul_exp
-} add_exp_ast_type;
+    BINARY_EXP_AST_TYPE_0 = 0,  // r_exp
+    BINARY_EXP_AST_TYPE_1       // l_exp op r_exp
+} binary_exp_ast_type;
 
-class AddExpAST : public BaseAST {
+class BinaryExpAST : public BaseAST {
    public:
-    add_exp_ast_type type;
-    std::unique_ptr<BaseAST> add_exp;
-    std::unique_ptr<BaseAST> mul_exp;
+    binary_exp_ast_type type;
     std::string op;
-
-    void dump_koopa(IRGenerator &irgen, std::ostream &out) const override;
-};
-
-typedef enum {
-    MUL_EXP_AST_TYPE_0 = 0,  // unary_exp
-    MUL_EXP_AST_TYPE_1,      // mul_exp op unary_exp
-} mul_exp_ast_type;
-
-class MulExpAST : public BaseAST {
-   public:
-    mul_exp_ast_type type;
-    std::unique_ptr<BaseAST> mul_exp;
-    std::unique_ptr<BaseAST> unary_exp;
-    std::string op;
+    std::unique_ptr<BaseAST> l_exp;
+    std::unique_ptr<BaseAST> r_exp;
 
     void dump_koopa(IRGenerator &irgen, std::ostream &out) const override;
 };
@@ -92,8 +77,8 @@ typedef enum {
 class UnaryExpAST : public BaseAST {
    public:
     unary_exp_ast_type type;
+    std::string op;
     std::unique_ptr<BaseAST> primary_exp;
-    std::unique_ptr<BaseAST> unary_op;
     std::unique_ptr<BaseAST> unary_exp;
 
     void dump_koopa(IRGenerator &irgen, std::ostream &out) const override;
@@ -109,13 +94,6 @@ class PrimaryExpAST : public BaseAST {
     primary_exp_ast_type type;
     std::unique_ptr<BaseAST> exp;
     int number;
-
-    void dump_koopa(IRGenerator &irgen, std::ostream &out) const override;
-};
-
-class UnaryOpAST : public BaseAST {
-   public:
-    std::string op;
 
     void dump_koopa(IRGenerator &irgen, std::ostream &out) const override;
 };
