@@ -43,11 +43,12 @@ using namespace std;
 %token INT RETURN
 %token <str_val> IDENT
 %token <int_val> INT_CONST
+%token <str_val> LE GE EQ NE LAND LOR
 
 // Non-terminating tokens
 %type <ast_val> FuncDef FuncType Block Stmt Exp
 %type <ast_val> LOrExp LAndExp EqExp RelExp AddExp MulExp PrimaryExp UnaryExp
-%type <str_val> UnaryOp BinaryOp
+%type <str_val> UnaryOp MulOp AddOp RelOp EqOp
 %type <int_val> Number
 
 %%
@@ -108,7 +109,7 @@ LOrExp
     ast->r_exp = unique_ptr<BaseAST>($1);
     $$ = ast;
   }
-  | LOrExp BinaryOp LAndExp {
+  | LOrExp LOR LAndExp {
     auto ast = new BinaryExpAST();
     ast->type = BINARY_EXP_AST_TYPE_1;
     ast->l_exp = unique_ptr<BaseAST>($1);
@@ -126,7 +127,7 @@ LAndExp
     ast->r_exp = unique_ptr<BaseAST>($1);
     $$ = ast;
   }
-  | LAndExp BinaryOp EqExp {
+  | LAndExp LAND EqExp {
     auto ast = new BinaryExpAST();
     ast->type = BINARY_EXP_AST_TYPE_1;
     ast->l_exp = unique_ptr<BaseAST>($1);
@@ -144,7 +145,7 @@ EqExp
     ast->r_exp = unique_ptr<BaseAST>($1);
     $$ = ast;
   }
-  | EqExp BinaryOp RelExp {
+  | EqExp EqOp RelExp {
     auto ast = new BinaryExpAST();
     ast->type = BINARY_EXP_AST_TYPE_1;
     ast->l_exp = unique_ptr<BaseAST>($1);
@@ -162,7 +163,7 @@ RelExp
     ast->r_exp = unique_ptr<BaseAST>($1);
     $$ = ast;
   }
-  | RelExp BinaryOp RelExp {
+  | RelExp RelOp AddExp {
     auto ast = new BinaryExpAST();
     ast->type = BINARY_EXP_AST_TYPE_1;
     ast->l_exp = unique_ptr<BaseAST>($1);
@@ -180,7 +181,7 @@ AddExp
     ast->r_exp = unique_ptr<BaseAST>($1);
     $$ = ast;
   }
-  | AddExp BinaryOp MulExp {
+  | AddExp AddOp MulExp {
     auto ast = new BinaryExpAST();
     ast->type = BINARY_EXP_AST_TYPE_1;
     ast->l_exp = unique_ptr<BaseAST>($1);
@@ -198,28 +199,13 @@ MulExp
     ast->r_exp = unique_ptr<BaseAST>($1);
     $$ = ast;
   }
-  | MulExp BinaryOp UnaryExp {
+  | MulExp MulOp UnaryExp {
     auto ast = new BinaryExpAST();
     ast->type = BINARY_EXP_AST_TYPE_1;
     ast->l_exp = unique_ptr<BaseAST>($1);
     ast->op = std::string(*$2);
     ast->r_exp = unique_ptr<BaseAST>($3);
     delete $2;
-    $$ = ast;
-  }
-  ;
-
-PrimaryExp
-  : '(' Exp ')' {
-    auto ast = new PrimaryExpAST();
-    ast->type = PRIMARY_EXP_AST_TYPE_0;
-    ast->exp = unique_ptr<BaseAST>($2);
-    $$ = ast;
-  }
-  | Number {
-    auto ast = new PrimaryExpAST();
-    ast->type = PRIMARY_EXP_AST_TYPE_1;
-    ast->number = $1;
     $$ = ast;
   }
   ;
@@ -241,6 +227,21 @@ UnaryExp
   }
   ;
 
+PrimaryExp
+  : '(' Exp ')' {
+    auto ast = new PrimaryExpAST();
+    ast->type = PRIMARY_EXP_AST_TYPE_0;
+    ast->exp = unique_ptr<BaseAST>($2);
+    $$ = ast;
+  }
+  | Number {
+    auto ast = new PrimaryExpAST();
+    ast->type = PRIMARY_EXP_AST_TYPE_1;
+    ast->number = $1;
+    $$ = ast;
+  }
+  ;
+
 UnaryOp
   : '+' {
     $$ = new std::string("+");
@@ -253,20 +254,27 @@ UnaryOp
   }
   ;
 
-BinaryOp
-  : '+'  { $$ = new std::string("+"); }
-  | '-'  { $$ = new std::string("-"); }
-  | '*'  { $$ = new std::string("*"); }
+MulOp
+  : '*'  { $$ = new std::string("*"); }
   | '/'  { $$ = new std::string("/"); }
   | '%'  { $$ = new std::string("%"); }
-  | '<'  { $$ = new std::string("<"); }
+  ;
+
+AddOp
+  : '+'  { $$ = new std::string("+"); }
+  | '-'  { $$ = new std::string("-"); }
+  ;
+
+RelOp
+  : '<'  { $$ = new std::string("<"); }
   | '>'  { $$ = new std::string(">"); }
-  | '<' '='  { $$ = new std::string("<="); }
-  | '>' '='  { $$ = new std::string(">="); }
-  | '=' '='  { $$ = new std::string("=="); }
-  | '!' '='  { $$ = new std::string("!="); }
-  | '&' '&'  { $$ = new std::string("&&"); }
-  | '|' '|'  { $$ = new std::string("||"); }
+  | LE   { $$ = $1; }
+  | GE   { $$ = $1; }
+  ;
+
+EqOp
+  : EQ   { $$ = $1; }
+  | NE   { $$ = $1; }
   ;
 
 Number

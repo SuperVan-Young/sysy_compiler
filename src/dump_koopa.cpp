@@ -40,11 +40,11 @@ void BinaryExpAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
         return;  // needless to operate on stack
     } else if (type == BINARY_EXP_AST_TYPE_1) {
         // dump &  fetch sub exp values
+        r_exp->dump_koopa(irgen, out);  // higher priority!
         l_exp->dump_koopa(irgen, out);
-        r_exp->dump_koopa(irgen, out);
-        auto r_val = irgen.stack_val.top();
+        auto l_val = irgen.stack_val.top();  // order!
         irgen.stack_val.pop();
-        auto l_val = irgen.stack_val.top();
+        auto r_val = irgen.stack_val.top();
         irgen.stack_val.pop();
 
         // dump exp w.r.t. op
