@@ -48,8 +48,16 @@ void BinaryExpAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
         irgen.stack_val.pop();
 
         // dump exp w.r.t. op
-        std::string exp_val;
-        exp_val = irgen.new_val();
+        if (op == "&&" || op == "||") {
+            // convert both value into logical values
+            auto ll_val = irgen.new_val();
+            auto lr_val = irgen.new_val();
+            out << "  " << ll_val << " = ne " << l_val << ", 0" << std::endl;
+            out << "  " << lr_val << " = ne " << r_val << ", 0" << std::endl;
+            l_val = ll_val;
+            r_val = lr_val;
+        }
+        auto exp_val = irgen.new_val();
         out << "  " << exp_val << " = ";
         if (op == "+")
             out << "add ";
@@ -83,6 +91,7 @@ void BinaryExpAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
         }
         out << l_val << ", " << r_val << std::endl;
         irgen.stack_val.push(exp_val);
+
     } else {
         assert(false);
     }
