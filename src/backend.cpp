@@ -121,6 +121,7 @@ int KoopaRiscvBackend::dump_koopa_raw_value_inst(koopa_raw_value_t value) {
     if (tag == KOOPA_RVT_BINARY) {
         auto op = value->kind.data.binary.op;
         std::string lhs, rhs;
+        bool recycle_lhs = false, recycle_rhs = false;
 
         // find lhs operand, assign a register if necessary
         auto lhs_val = value->kind.data.binary.lhs;
@@ -134,6 +135,7 @@ int KoopaRiscvBackend::dump_koopa_raw_value_inst(koopa_raw_value_t value) {
             dump_riscv_inst("li", lhs,
                             std::to_string(lhs_val->kind.data.integer.value));
             write_tmp_reg(lhs_val, lhs);
+            recycle_lhs = true;
         }
 
         // find rhs operand
@@ -157,6 +159,7 @@ int KoopaRiscvBackend::dump_koopa_raw_value_inst(koopa_raw_value_t value) {
                             std::to_string(rhs_val->kind.data.integer.value));
                 write_tmp_reg(rhs_val, rhs);
                 rhs_imm = false;
+                recycle_rhs = true;
             }
         }
 
@@ -217,6 +220,10 @@ int KoopaRiscvBackend::dump_koopa_raw_value_inst(koopa_raw_value_t value) {
 
         // write the result back to regfile
         write_tmp_reg(value, reg);
+
+        // recycle imm's registers
+        if (recycle_lhs) write_tmp_reg(nullptr, lhs);
+        if (recycle_rhs) write_tmp_reg(nullptr, rhs);
 
         return 0;
 
