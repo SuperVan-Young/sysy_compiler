@@ -129,13 +129,18 @@ int KoopaRiscvBackend::dump_koopa_raw_value_inst(koopa_raw_value_t value) {
             lhs = find_tmp_reg(lhs_val);
             assert(lhs != "");
         } else if (lhs_val->kind.tag == KOOPA_RVT_INTEGER) {
-            // new reg, dump inst, write back
-            lhs = new_tmp_reg(lhs_val);
-            assert(lhs != "");
-            dump_riscv_inst("li", lhs,
-                            std::to_string(lhs_val->kind.data.integer.value));
-            write_tmp_reg(lhs_val, lhs);
-            recycle_lhs = true;
+            if (lhs_val->kind.data.integer.value == 0) {
+                lhs = "x0";
+            } else {
+                // new reg, dump inst, write back
+                lhs = new_tmp_reg(lhs_val);
+                assert(lhs != "");
+                dump_riscv_inst(
+                    "li", lhs,
+                    std::to_string(lhs_val->kind.data.integer.value));
+                write_tmp_reg(lhs_val, lhs);
+                recycle_lhs = true;
+            }
         }
 
         // find rhs operand
@@ -152,14 +157,20 @@ int KoopaRiscvBackend::dump_koopa_raw_value_inst(koopa_raw_value_t value) {
                 rhs = std::to_string(rhs_val->kind.data.integer.value);
                 rhs_imm = true;
             } else {
-                // new reg, dump inst, write back
-                rhs = new_tmp_reg(rhs_val);
-                assert(rhs != "");
-                dump_riscv_inst("li", rhs,
-                            std::to_string(rhs_val->kind.data.integer.value));
-                write_tmp_reg(rhs_val, rhs);
-                rhs_imm = false;
-                recycle_rhs = true;
+                if (rhs_val->kind.data.integer.value == 0) {
+                    rhs = "x0";
+                    rhs_imm = false;
+                } else {
+                    // new reg, dump inst, write back
+                    rhs = new_tmp_reg(rhs_val);
+                    assert(rhs != "");
+                    dump_riscv_inst(
+                        "li", rhs,
+                        std::to_string(rhs_val->kind.data.integer.value));
+                    write_tmp_reg(rhs_val, rhs);
+                    rhs_imm = false;
+                    recycle_rhs = true;
+                }
             }
         }
 
