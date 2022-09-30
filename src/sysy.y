@@ -40,15 +40,16 @@ using namespace std;
 }
 
 // manifest constant for lexer, representing terminating token
-%token INT RETURN
+%token INT RETURN CONST
 %token <str_val> IDENT
 %token <int_val> INT_CONST
 %token <str_val> LE GE EQ NE LAND LOR
 
 // Non-terminating tokens
-%type <ast_val> FuncDef FuncType Block Stmt Exp
-%type <ast_val> LOrExp LAndExp EqExp RelExp AddExp MulExp PrimaryExp UnaryExp
-%type <str_val> UnaryOp MulOp AddOp RelOp EqOp
+%type <ast_val> Decl ConstDecl ConstDef OptionalConstDef ConstInitVal ConstExp
+                FuncDef FuncType Block Stmt Exp
+                LOrExp LAndExp EqExp RelExp AddExp MulExp PrimaryExp UnaryExp
+%type <str_val> BType UnaryOp MulOp AddOp RelOp EqOp
 %type <int_val> Number
 
 %%
@@ -58,6 +59,73 @@ CompUnit
     auto comp_unit = make_unique<CompUnitAST>();
     comp_unit->func_def = unique_ptr<BaseAST>($1);
     ast = move(comp_unit);
+  }
+  ;
+
+Decl
+  : ConstDecl {
+    $$ = $1
+  }
+  ;
+
+ConstDecl 
+  : CONST BType ConstDef OptionalConstDef ';' {
+    auto ast = new DeclAST();
+    ast->is_const = true;
+    ast->btype = *unique_ptr<string>($2);
+    ast->defs.push_back(unique_ptr<BaseAST>($3));
+    unique_ptr<BaseAST> cur = unique_ptr<BaseAST>($4);
+    unique_ptr<BaseAST> tmp;
+    while (cur != nullptr) {
+      tmp = move(cur->next);
+      ast->defs.push_back(move(cur));
+      cur = move(tmp);
+    }
+    $$ = ast;
+  }
+  ;
+
+OptionalConstDef
+  : {
+    auto ast = new DeclDefAST();
+    return ast;
+  }
+  | ';' ConstDef OptionalConstDef {
+    auto ast = $2;
+    ast->next = unique_ptr<BaseAST>($3);
+    $$ = ast;
+  }
+  ;
+
+ConstDef
+  : IDENT '=' ConstInitVal {
+    auto ast = new DeclDefAST();
+    ast->is_const = true;
+    ast->ident = *unique_ptr<BaseAST>($1);
+    ast->init_val = unique_ptr<BaseAST>($3);
+    $$ = ast;
+  }
+  ;
+
+ConstInitVal
+  : ConstExp {
+    auto ast = new InitvalAST();
+    ast->is_const = true;
+    ast->exp = unique_ptr<BaseAST>($1);
+    $$ = ast;
+  }
+  ;
+
+ConstExp
+  : Exp {
+    $$ = $1;
+    $$->is_const = true;
+  }
+  ;
+
+BType
+  : INT {
+    $$ = std::string("int");
   }
   ;
 

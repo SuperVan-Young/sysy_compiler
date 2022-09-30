@@ -30,7 +30,7 @@ class DeclAST : public BaseAST {
    public:
     bool is_const;
     std::string btype;
-    std::vector<std::unique_ptr<DeclDefAST>> defs;
+    std::vector<std::unique_ptr<BaseAST>> defs;
 
     void dump_koopa(IRGenerator &irgen, std::ostream &out) const override;
 };
@@ -42,6 +42,7 @@ class DeclDefAST : public BaseAST {
     bool is_const;
     std::string ident;
     std::unique_ptr<BaseAST> init_val;
+    std::unique_ptr<BaseAST> next;  // for optional defs
 
     void dump_koopa(IRGenerator &irgen, std::ostream &out) const override;
 };
