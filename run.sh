@@ -1,1 +1,1 @@
-sudo docker run -it --rm -v /home/xenon/compiler:/root/compiler maxxing/compiler-dev bash
+docker run -it --rm -v $(pwd):/root/compiler maxxing/compiler-dev bash

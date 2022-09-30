@@ -4,18 +4,36 @@ void CompUnitAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
     func_def->dump_koopa(irgen, out);
 }
 
+void DeclAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
+    for (auto &def : defs) def->dump_koopa(irgen, out);
+}
+
+void DeclDefAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
+    SymbolTableEntry entry;
+    auto exp = dynamic_cast<InitValAST *>(init_val.get())->exp.get();
+    entry.has_val = dynamic_cast<CalcAST *>(exp)->calc_val(irgen, entry.val);
+    if (is_const) assert(entry.has_val);
+    irgen.symbol_table.insert_entry(ident, entry);
+}
+
 void FuncDefAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
-    out << "fun @" << ident;
-    out << "(): ";  // TODO: add params
-    out << "i32";
-    out << " {" << std::endl;
-    out << "\%entry:" << std::endl;
+    out << "fun @" << ident << "(): "
+        << "i32"
+        << " {" << std::endl;
     block->dump_koopa(irgen, out);
     out << "}" << std::endl;
 }
 
 void BlockAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
-    stmt->dump_koopa(irgen, out);
+    auto block_name = irgen.new_block();
+    out << block_name << ":" << std::endl;
+    for (auto &item : items) {
+        item->dump_koopa(irgen, out);
+    }
+}
+
+void BlockItemAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
+    item->dump_koopa(irgen, out);
 }
 
 void StmtAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
@@ -137,7 +155,16 @@ void PrimaryExpAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
         // number
         irgen.stack_val.push(std::to_string(number));
         return;
+    } else if (type == PRIMARY_EXP_AST_TYPE_2) {
+        // lval
+        // TODO: finish this part and let parent node know!
     } else {
+        std::cerr << "Invalid primary exp type: " << type << std::endl;
         assert(false);
     }
+}
+
+void LValAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
+    // This function shouldn't be called directly, for now
+    assert(false);
 }

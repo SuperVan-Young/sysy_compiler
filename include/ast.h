@@ -29,7 +29,7 @@ class CompUnitAST : public BaseAST {
 class DeclAST : public BaseAST {
    public:
     bool is_const;
-    std::string btype;
+    std::string btype;  // only int
     std::vector<std::unique_ptr<BaseAST>> defs;
 
     void dump_koopa(IRGenerator &irgen, std::ostream &out) const override;
@@ -42,7 +42,7 @@ class DeclDefAST : public BaseAST {
     bool is_const;
     std::string ident;
     std::unique_ptr<BaseAST> init_val;
-    std::unique_ptr<BaseAST> next;  // for optional defs
+    DeclDefAST *next;  // for optional defs
 
     void dump_koopa(IRGenerator &irgen, std::ostream &out) const override;
 };
@@ -55,7 +55,9 @@ class InitValAST : public BaseAST {
     bool is_const;
     std::unique_ptr<BaseAST> exp;
 
-    void dump_koopa(IRGenerator &irgen, std::ostream &out) const override;
+    void dump_koopa(IRGenerator &irgen, std::ostream &out) const override {
+        assert(false);   // this function shouldn't be called 
+    }
 };
 
 // FuncDef       ::= FuncType IDENT "(" ")" Block;
@@ -71,7 +73,7 @@ class FuncDefAST : public BaseAST {
 // Block         ::= "{" {BlockItem} "}";
 class BlockAST : public BaseAST {
    public:
-    std::unique_ptr<BaseAST> items;
+    std::vector<std::unique_ptr<BaseAST>> items;
 
     void dump_koopa(IRGenerator &irgen, std::ostream &out) const override;
 };
@@ -86,7 +88,7 @@ class BlockItemAST : public BaseAST {
    public:
     block_item_ast_type type;
     std::unique_ptr<BaseAST> item;
-    std::unique_ptr<BaseAST> next;
+    BlockItemAST *next;
 
     void dump_koopa(IRGenerator &irgen, std::ostream &out) const override;
 };

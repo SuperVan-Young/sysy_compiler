@@ -60,7 +60,6 @@ bool UnaryExpAST::calc_val(IRGenerator &irgen, int &result) const {
     if (type == UNARY_EXP_AST_TYPE_0) {
         ret =
             dynamic_cast<CalcAST *>(primary_exp.get())->calc_val(irgen, result);
-        return ret;
     } else if (type == UNARY_EXP_AST_TYPE_1) {
         ret = dynamic_cast<CalcAST *>(unary_exp.get())->calc_val(irgen, result);
         if (op == "!") {
@@ -75,6 +74,7 @@ bool UnaryExpAST::calc_val(IRGenerator &irgen, int &result) const {
     } else {
         assert(false);
     }
+    return ret;
 }
 
 bool PrimaryExpAST::calc_val(IRGenerator &irgen, int &result) const {
@@ -85,6 +85,8 @@ bool PrimaryExpAST::calc_val(IRGenerator &irgen, int &result) const {
         return true;
     } else if (type == PRIMARY_EXP_AST_TYPE_2) {
         return dynamic_cast<CalcAST *>(lval.get())->calc_val(irgen, result);
+    } else {
+        assert(false);
     }
 }
 

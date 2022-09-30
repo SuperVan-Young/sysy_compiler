@@ -67,7 +67,7 @@ CompUnit
 
 Decl
   : ConstDecl {
-    $$ = $1
+    $$ = $1;
   }
   ;
 
@@ -77,25 +77,25 @@ ConstDecl
     ast->is_const = true;
     ast->btype = *unique_ptr<string>($2);
     ast->defs.push_back(unique_ptr<BaseAST>($3));
-    unique_ptr<BaseAST> cur = unique_ptr<BaseAST>($4);
-    unique_ptr<BaseAST> tmp;
-    while (cur.get() != nullptr) {
-      tmp = move(cur->next);
-      ast->defs.push_back(move(cur));
-      cur = move(tmp);
+    DeclDefAST* cur = (DeclDefAST*)$4;
+    DeclDefAST* tmp;
+    while (cur != nullptr) {
+      tmp = cur->next;
+      ast->defs.push_back(unique_ptr<BaseAST>((BaseAST*)cur));
+      cur = tmp;
     }
     $$ = ast;
   }
   ;
 
 OptionalConstDef
-  : {
-    auto ast = new DeclDefAST();
-    return ast;
-  }
-  | ';' ConstDef OptionalConstDef {
+  : ',' ConstDef OptionalConstDef {
     auto ast = $2;
-    ast->next = unique_ptr<BaseAST>($3);
+    ((DeclDefAST*)ast)->next = ((DeclDefAST*)$3);
+    $$ = ast;
+  }
+  | {
+    auto ast = new DeclDefAST();
     $$ = ast;
   }
   ;
@@ -104,7 +104,7 @@ ConstDef
   : IDENT '=' ConstInitVal {
     auto ast = new DeclDefAST();
     ast->is_const = true;
-    ast->ident = *unique_ptr<BaseAST>($1);
+    ast->ident = *unique_ptr<std::string>($1);
     ast->init_val = unique_ptr<BaseAST>($3);
     $$ = ast;
   }
@@ -112,7 +112,7 @@ ConstDef
 
 ConstInitVal
   : ConstExp {
-    auto ast = new InitvalAST();
+    auto ast = new InitValAST();
     ast->is_const = true;
     ast->exp = unique_ptr<BaseAST>($1);
     $$ = ast;
@@ -122,13 +122,13 @@ ConstInitVal
 ConstExp
   : Exp {
     $$ = $1;
-    $$->is_const = true;
+    ((ExpAST*)$$)->is_const = true;
   }
   ;
 
 BType
   : INT {
-    $$ = std::string("int");
+    $$ = new std::string("int");
   }
   ;
 
@@ -144,32 +144,32 @@ FuncDef
 
 FuncType
   : INT {
-    $$ = std::string("int");
+    $$ = new std::string("int");
   }
   ;
 
 Block
   : '{' OptionalBlockItem '}' {
     auto ast = new BlockAST();
-    unique_ptr<BaseAST> cur = unique_ptr<BaseAST>($2);
-    unique_ptr<BaseAST> tmp;
-    while (cur.get() != nullptr) {
-      tmp = move(cur->next);
-      ast->items.push_back(move(cur));
-      cur = move(tmp);
+    BlockItemAST* cur = (BlockItemAST*)($2);
+    BlockItemAST* tmp;
+    while (cur != nullptr) {
+      tmp = cur->next;
+      ast->items.push_back(unique_ptr<BaseAST>((BaseAST*)cur));
+      cur = tmp;
     }
     $$ = ast;
   }
   ;
 
 OptionalBlockItem
-  : {
-    auto ast = new BlockItemAST();
-    $$ ast;
-  }
-  | BlockItem OptionalBlockItem {
+  : BlockItem OptionalBlockItem {
     auto ast = $1;
-    ast->next = unique_ptr<BaseAST>($2);
+    ((DeclDefAST*)ast)->next = ((DeclDefAST*)$2);
+    $$ = ast;
+  }
+  | {
+    auto ast = new BlockItemAST();
     $$ = ast;
   }
   ;
@@ -207,6 +207,7 @@ Stmt
 Exp
   : LOrExp {
     auto ast = new ExpAST();
+    ast->is_const = false;
     ast->binary_exp = unique_ptr<BaseAST>($1);
     $$ = ast;
   }
