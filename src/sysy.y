@@ -46,11 +46,11 @@ using namespace std;
 %token <str_val> LE GE EQ NE LAND LOR
 
 // Non-terminating tokens
-%type <ast_val> Decl ConstDecl ConstDef OptionalConstDef ConstInitVal 
-                FuncDef 
-                Block
+%type <ast_val> FuncDef 
+                Block OptionalBlockItem BlockItem
+                Decl ConstDecl ConstDef OptionalConstDef ConstInitVal 
                 Stmt 
-                ConstExp Exp LOrExp LAndExp EqExp RelExp AddExp MulExp UnaryExp PrimaryExp
+                ConstExp Exp LOrExp LAndExp EqExp RelExp AddExp MulExp UnaryExp PrimaryExp LVal
 %type <str_val> FuncType BType
                 UnaryOp MulOp AddOp RelOp EqOp
 %type <int_val> Number
@@ -79,7 +79,7 @@ ConstDecl
     ast->defs.push_back(unique_ptr<BaseAST>($3));
     unique_ptr<BaseAST> cur = unique_ptr<BaseAST>($4);
     unique_ptr<BaseAST> tmp;
-    while (cur != nullptr) {
+    while (cur.get() != nullptr) {
       tmp = move(cur->next);
       ast->defs.push_back(move(cur));
       cur = move(tmp);
@@ -149,12 +149,52 @@ FuncType
   ;
 
 Block
-  : '{' Stmt '}' {
+  : '{' OptionalBlockItem '}' {
     auto ast = new BlockAST();
-    ast->stmt = unique_ptr<BaseAST>($2);
+    unique_ptr<BaseAST> cur = unique_ptr<BaseAST>($2);
+    unique_ptr<BaseAST> tmp;
+    while (cur.get() != nullptr) {
+      tmp = move(cur->next);
+      ast->items.push_back(move(cur));
+      cur = move(tmp);
+    }
     $$ = ast;
   }
   ;
+
+OptionalBlockItem
+  : {
+    auto ast = new BlockItemAST();
+    $$ ast;
+  }
+  | BlockItem OptionalBlockItem {
+    auto ast = $1;
+    ast->next = unique_ptr<BaseAST>($2);
+    $$ = ast;
+  }
+  ;
+
+BlockItem
+  : Decl{
+    auto ast = new BlockItemAST();
+    ast->type = BLOCK_ITEM_AST_TYPE_0;
+    ast->item = unique_ptr<BaseAST>($1);
+    $$ = ast;
+  }
+  | Stmt {
+    auto ast = new BlockItemAST();
+    ast->type = BLOCK_ITEM_AST_TYPE_1;
+    ast->item = unique_ptr<BaseAST>($1);
+    $$ = ast;
+  }
+  ;
+
+LVal
+  : IDENT {
+    auto ast = new LValAST();
+    ast->ident = *unique_ptr<std::string>($1);
+    $$ = ast;
+  }
 
 Stmt
   : RETURN Exp ';' {
@@ -308,6 +348,12 @@ PrimaryExp
     auto ast = new PrimaryExpAST();
     ast->type = PRIMARY_EXP_AST_TYPE_1;
     ast->number = $1;
+    $$ = ast;
+  }
+  | LVal {
+    auto ast = new PrimaryExpAST();
+    ast->type = PRIMARY_EXP_AST_TYPE_2;
+    ast->lval = unique_ptr<BaseAST>($1);
     $$ = ast;
   }
   ;

@@ -58,6 +58,7 @@ class InitValAST : public BaseAST {
     void dump_koopa(IRGenerator &irgen, std::ostream &out) const override;
 };
 
+// FuncDef       ::= FuncType IDENT "(" ")" Block;
 class FuncDefAST : public BaseAST {
    public:
     std::string func_type;
@@ -67,13 +68,30 @@ class FuncDefAST : public BaseAST {
     void dump_koopa(IRGenerator &irgen, std::ostream &out) const override;
 };
 
+// Block         ::= "{" {BlockItem} "}";
 class BlockAST : public BaseAST {
    public:
-    std::unique_ptr<BaseAST> stmt;
+    std::unique_ptr<BaseAST> items;
 
     void dump_koopa(IRGenerator &irgen, std::ostream &out) const override;
 };
 
+typedef enum {
+    BLOCK_ITEM_AST_TYPE_0 = 0,  // decl
+    BLOCK_ITEM_AST_TYPE_1,      // stmt
+} block_item_ast_type;
+
+// BlockItem     ::= Decl | Stmt;
+class BlockItemAST : public BaseAST {
+   public:
+    block_item_ast_type type;
+    std::unique_ptr<BaseAST> item;
+    std::unique_ptr<BaseAST> next;
+
+    void dump_koopa(IRGenerator &irgen, std::ostream &out) const override;
+};
+
+// Stmt          ::= Exp
 class StmtAST : public BaseAST {
    public:
     std::unique_ptr<BaseAST> exp;
@@ -81,8 +99,8 @@ class StmtAST : public BaseAST {
     void dump_koopa(IRGenerator &irgen, std::ostream &out) const override;
 };
 
-// Exp           ::= LOrExp
 // ConstExp      ::= Exp
+// Exp           ::= LOrExp
 class ExpAST : public BaseAST {
    public:
     bool is_const;
