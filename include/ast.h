@@ -99,14 +99,20 @@ class StmtAST : public BaseAST {
     void dump_koopa(IRGenerator &irgen, std::ostream &out) const override;
 };
 
+class CalcAST : public BaseAST {
+   public:
+    virtual bool calc_val(IRGenerator &irgen, int &result) const = 0;
+};
+
 // ConstExp      ::= Exp
 // Exp           ::= LOrExp
-class ExpAST : public BaseAST {
+class ExpAST : public CalcAST {
    public:
     bool is_const;
     std::unique_ptr<BaseAST> binary_exp;
 
     void dump_koopa(IRGenerator &irgen, std::ostream &out) const override;
+    bool calc_val(IRGenerator &irgen, int &result) const override;
 };
 
 typedef enum {
@@ -120,7 +126,7 @@ typedef enum {
 // EqExp         ::= RelExp | EqExp ("==" | "!=") RelExp;
 // LAndExp       ::= EqExp | LAndExp "&&" EqExp;
 // LOrExp        ::= LAndExp | LOrExp "||" LAndExp;
-class BinaryExpAST : public BaseAST {
+class BinaryExpAST : public CalcAST {
    public:
     binary_exp_ast_type type;
     std::string op;
@@ -128,6 +134,7 @@ class BinaryExpAST : public BaseAST {
     std::unique_ptr<BaseAST> r_exp;
 
     void dump_koopa(IRGenerator &irgen, std::ostream &out) const override;
+    bool calc_val(IRGenerator &irgen, int &result) const override;
 };
 
 typedef enum {
@@ -136,7 +143,7 @@ typedef enum {
 } unary_exp_ast_type;
 
 // UnaryExp      ::= PrimaryExp | UnaryOp UnaryExp;
-class UnaryExpAST : public BaseAST {
+class UnaryExpAST : public CalcAST {
    public:
     unary_exp_ast_type type;
     std::string op;
@@ -144,6 +151,7 @@ class UnaryExpAST : public BaseAST {
     std::unique_ptr<BaseAST> unary_exp;
 
     void dump_koopa(IRGenerator &irgen, std::ostream &out) const override;
+    bool calc_val(IRGenerator &irgen, int &result) const override;
 };
 
 typedef enum {
@@ -152,19 +160,21 @@ typedef enum {
     PRIMARY_EXP_AST_TYPE_2,      // lval
 } primary_exp_ast_type;
 
-class PrimaryExpAST : public BaseAST {
+class PrimaryExpAST : public CalcAST {
    public:
     primary_exp_ast_type type;
     std::unique_ptr<BaseAST> exp;
     int number;
-    std::unique_ptr<BaseAST> val;
+    std::unique_ptr<BaseAST> lval;
 
     void dump_koopa(IRGenerator &irgen, std::ostream &out) const override;
+    bool calc_val(IRGenerator &irgen, int &result) const override;
 };
 
-class LValAST : public BaseAST {
+class LValAST : public CalcAST {
    public:
     std::string ident;
 
     void dump_koopa(IRGenerator &irgen, std::ostream &out) const override;
+    bool calc_val(IRGenerator &irgen, int &result) const override;
 };

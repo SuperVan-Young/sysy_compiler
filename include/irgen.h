@@ -18,6 +18,7 @@ class IRGenerator {
         cnt_block = 0;
     }
     std::stack<std::string> stack_val;  // parse exp
+    SymbolTable symbol_table;
 
     std::string new_val() {
         auto val = cnt_val++;
@@ -44,9 +45,9 @@ class SymbolTable {
         entries.insert(std::pair<std::string, SymbolTableEntry>(name, entry));
     }
 
-    bool get_entry_val(std::string name) {
+    bool get_entry_val(std::string name, int &val) {
         auto &entry = entries[name];
-        assert(entry.has_val);
-        return entry.val;
+        val = entry.val;
+        return entry.has_val;
     }
 };
