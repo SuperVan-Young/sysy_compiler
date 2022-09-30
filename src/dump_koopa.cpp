@@ -7,15 +7,11 @@ void CompUnitAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
 void FuncDefAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
     out << "fun @" << ident;
     out << "(): ";  // TODO: add params
-    func_type->dump_koopa(irgen, out);
+    out << "i32";
     out << " {" << std::endl;
     out << "\%entry:" << std::endl;
     block->dump_koopa(irgen, out);
     out << "}" << std::endl;
-}
-
-void FuncTypeAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
-    out << "i32";
 }
 
 void BlockAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {

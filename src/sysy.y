@@ -46,10 +46,13 @@ using namespace std;
 %token <str_val> LE GE EQ NE LAND LOR
 
 // Non-terminating tokens
-%type <ast_val> Decl ConstDecl ConstDef OptionalConstDef ConstInitVal ConstExp
-                FuncDef FuncType Block Stmt Exp
-                LOrExp LAndExp EqExp RelExp AddExp MulExp PrimaryExp UnaryExp
-%type <str_val> BType UnaryOp MulOp AddOp RelOp EqOp
+%type <ast_val> Decl ConstDecl ConstDef OptionalConstDef ConstInitVal 
+                FuncDef 
+                Block
+                Stmt 
+                ConstExp Exp LOrExp LAndExp EqExp RelExp AddExp MulExp UnaryExp PrimaryExp
+%type <str_val> FuncType BType
+                UnaryOp MulOp AddOp RelOp EqOp
 %type <int_val> Number
 
 %%
@@ -132,7 +135,7 @@ BType
 FuncDef
   : FuncType IDENT '(' ')' Block {
     auto ast = new FuncDefAST();
-    ast->func_type = unique_ptr<BaseAST>($1);
+    ast->func_type = *unique_ptr<string>($1);
     ast->ident = *unique_ptr<string>($2);
     ast->block = unique_ptr<BaseAST>($5);
     $$ = ast;
@@ -141,8 +144,7 @@ FuncDef
 
 FuncType
   : INT {
-    auto ast = new FuncTypeAST();
-    $$ = ast;
+    $$ = std::string("int");
   }
   ;
 

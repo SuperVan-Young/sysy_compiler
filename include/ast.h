@@ -60,14 +60,10 @@ class InitValAST : public BaseAST {
 
 class FuncDefAST : public BaseAST {
    public:
-    std::unique_ptr<BaseAST> func_type;
+    std::string func_type;
     std::string ident;
     std::unique_ptr<BaseAST> block;
 
-    void dump_koopa(IRGenerator &irgen, std::ostream &out) const override;
-};
-
-class FuncTypeAST : public BaseAST {
     void dump_koopa(IRGenerator &irgen, std::ostream &out) const override;
 };
 
@@ -135,6 +131,7 @@ class UnaryExpAST : public BaseAST {
 typedef enum {
     PRIMARY_EXP_AST_TYPE_0 = 0,  // exp
     PRIMARY_EXP_AST_TYPE_1,      // number
+    PRIMARY_EXP_AST_TYPE_2,      // lval
 } primary_exp_ast_type;
 
 class PrimaryExpAST : public BaseAST {
@@ -142,6 +139,14 @@ class PrimaryExpAST : public BaseAST {
     primary_exp_ast_type type;
     std::unique_ptr<BaseAST> exp;
     int number;
+    std::unique_ptr<BaseAST> val;
+
+    void dump_koopa(IRGenerator &irgen, std::ostream &out) const override;
+};
+
+class LValAST : public BaseAST {
+   public:
+    std::string ident;
 
     void dump_koopa(IRGenerator &irgen, std::ostream &out) const override;
 };
