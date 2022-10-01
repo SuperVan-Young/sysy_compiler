@@ -24,8 +24,6 @@ class SymbolTable {
     void insert_entry(std::string name, SymbolTableEntry entry) {
         // the following code cannot insert existed name
         entries.insert(std::pair<std::string, SymbolTableEntry>(name, entry));
-
-        
     }
 
     bool get_entry_val(std::string name, int &val) {

@@ -47,11 +47,11 @@ using namespace std;
 
 // Non-terminating tokens
 %type <ast_val> FuncDef 
-                Block OptionalBlockItem BlockItem
-                Decl ConstDecl ConstDef OptionalConstDef ConstInitVal ConstExp 
+                Decl ConstDecl ConstDef OptionalConstDef ConstInitVal 
+                VarDecl VarDef OptionalVarDef InitVal
+                Block OptionalBlockItem BlockItem Stmt 
                 LVal
-                Stmt 
-                Exp LOrExp LAndExp EqExp RelExp AddExp MulExp UnaryExp PrimaryExp
+                ConstExp Exp LOrExp LAndExp EqExp RelExp AddExp MulExp UnaryExp PrimaryExp
 %type <str_val> FuncType
                 BType
                 UnaryOp MulOp AddOp RelOp EqOp
@@ -72,6 +72,9 @@ Decl
   : ConstDecl {
     $$ = $1;
   }
+  | VarDecl {
+    $$ = $1;
+  }
   ;
 
 ConstDecl 
@@ -88,6 +91,12 @@ ConstDecl
       cur = tmp;
     }
     $$ = ast;
+  }
+  ;
+
+BType
+  : INT {
+    $$ = new std::string("int");
   }
   ;
 
@@ -121,16 +130,57 @@ ConstInitVal
   }
   ;
 
-ConstExp
-  : Exp {
-    $$ = $1;
-    ((ExpAST*)$$)->is_const = true;
+VarDecl
+  : BType VarDef OptionalVarDef ';' {
+    auto ast = new DeclAST();
+    ast->is_const = false;
+    ast->btype = *unique_ptr<BaseAST>($1);
+    ast->defs.push_back(unique_ptr<BaseAST>($2));
+    DeclDefAST* cur = (DeclDefAST*)$3;
+    DeclDefAST* tmp;
+    while (cur != nullptr) {
+      tmp = cur->next;
+      ast->defs.push_back(unique_ptr<BaseAST>((BaseAST*)cur));
+      cur = tmp;
+    }
+    $$ = ast;
   }
   ;
 
-BType
-  : INT {
-    $$ = new std::string("int");
+OptionalVarDef
+  : ',' VarDef OptionalVarDef {
+    auto ast = $2;
+    ((DeclDefAST*)ast)->next = ((DeclDefAST*)$3);
+    $$ = ast;
+  }
+  | {
+    $$ = nullptr;
+  }
+  ;
+
+VarDef
+  : IDENT {
+    auto ast = new DeclDefAST();
+    ast->is_const = false;
+    ast->ident = *unique_ptr<std::string>($1);
+    ast->init_val = unique_ptr<BaseAST>(nullptr);
+    $$ = ast;
+  }
+  | IDENT '=' InitVal {
+    auto ast = new DeclDefAST();
+    ast->is_const = false;
+    ast->ident = *unique_ptr<std::string>($1);
+    ast->init_val = unique_ptr<BaseAST>($3);
+    $$ = ast;
+  }
+  ;
+
+InitVal
+  : Exp {
+    auto ast = new InitValAST();
+    ast->is_const = false;
+    ast->exp = unique_ptr<BaseAST>($1);
+    $$ = ast;
   }
   ;
 
@@ -202,6 +252,13 @@ Stmt
     auto ast = new StmtAST();
     ast->exp = unique_ptr<BaseAST>($2);
     $$ = ast;
+  }
+  ;
+
+ConstExp
+  : Exp {
+    $$ = $1;
+    ((ExpAST*)$$)->is_const = true;
   }
   ;
 
