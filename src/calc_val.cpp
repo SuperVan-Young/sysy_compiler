@@ -102,7 +102,7 @@ bool LValAST::calc_val(IRGenerator &irgen, int &result, bool calc_const) const {
         // if this is const calculation, you should only use const symbol,
         // and the symbol's value must have been initialized
         assert(irgen.symbol_table.is_const_entry(ident));
-        assert(irgen.symbol_table.get_entry_val(ident, result));
+        irgen.symbol_table.get_entry_val(ident, result);
         return true;
     } else {
         // otherwise, compiler checks constness and return.

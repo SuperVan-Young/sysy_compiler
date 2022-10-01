@@ -10,10 +10,36 @@ void DeclAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
 
 void DeclDefAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
     SymbolTableEntry entry;
-    auto exp = dynamic_cast<InitValAST *>(init_val.get())->exp.get();
-    entry.has_val = dynamic_cast<CalcAST *>(exp)->calc_val(irgen, entry.val);
-    if (is_const) assert(entry.has_val);
-    irgen.symbol_table.insert_entry(ident, entry);
+
+    if (is_const) {
+        entry.is_const = true;
+        // add const entry into symbol table
+        auto exp = dynamic_cast<InitValAST *>(init_val.get())->exp.get();
+        dynamic_cast<CalcAST *>(exp)->calc_val(irgen, entry.val, true);
+        irgen.symbol_table.insert_entry(ident, entry);
+    } else {
+        entry.is_const = false;
+        // allocate memory for var
+        out << "  @" << ident << " = alloc i32" << std::endl;
+        // add var entry into symbol table
+        if (init_val.get()) {
+            // store initial value to memory, if there is
+            auto exp = dynamic_cast<InitValAST *>(init_val.get())->exp.get();
+            bool is_val_determined =
+                dynamic_cast<CalcAST *>(exp)->calc_val(irgen, entry.val, false);
+
+            std::string store_val;
+            if (!is_val_determined) {
+                // dump necessary insts to calculate store val
+                exp->dump_koopa(irgen, out);
+                store_val = irgen.stack_val.top();
+                irgen.stack_val.pop();
+            } else
+                store_val = std::to_string(entry.val);
+            out << "  store " << store_val << ", @" << ident << std::endl;
+        }
+        irgen.symbol_table.insert_entry(ident, entry);
+    }
 }
 
 void FuncDefAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
@@ -158,7 +184,7 @@ void PrimaryExpAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
     } else if (type == PRIMARY_EXP_AST_TYPE_2) {
         // lval
         // symbol board should have a token
-        auto name = dynamic_cast<LValAST*>(lval.get())->ident;
+        auto name = dynamic_cast<LValAST *>(lval.get())->ident;
         int val;
         assert(irgen.symbol_table.exist_entry(name));
 

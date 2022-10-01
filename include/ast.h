@@ -41,7 +41,7 @@ class DeclDefAST : public BaseAST {
    public:
     bool is_const;
     std::string ident;
-    std::unique_ptr<BaseAST> init_val;
+    std::unique_ptr<BaseAST> init_val;  // could be null for var
     DeclDefAST *next;  // for optional defs
 
     void dump_koopa(IRGenerator &irgen, std::ostream &out) const override;
@@ -112,7 +112,7 @@ class StmtAST : public BaseAST {
 class CalcAST : public BaseAST {
    public:
     // Calculate AST's value, and store the result in the given reference.
-    // calc_const forces to use const value.
+    // calc_const forces to use const value, if not, raises errors.
     // Return true if we can determine that the calculated value is const
     virtual bool calc_val(IRGenerator &irgen, int &result, bool calc_const) const = 0;
 };
