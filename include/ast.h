@@ -56,7 +56,7 @@ class InitValAST : public BaseAST {
     std::unique_ptr<BaseAST> exp;
 
     void dump_koopa(IRGenerator &irgen, std::ostream &out) const override {
-        assert(false);   // this function shouldn't be called 
+        assert(false);  // this function shouldn't be called
     }
 };
 
@@ -93,9 +93,17 @@ class BlockItemAST : public BaseAST {
     void dump_koopa(IRGenerator &irgen, std::ostream &out) const override;
 };
 
-// Stmt          ::= Exp
+typedef enum {
+    STMT_AST_TYPE_0 = 0,  // assign
+    STMT_AST_TYPE_1,      // return
+} stmt_ast_type;
+
+// Stmt          ::= LVal "=" Exp ";"
+//                 | "return" Exp ";"
 class StmtAST : public BaseAST {
    public:
+    stmt_ast_type type;
+    std::unique_ptr<BaseAST> lval;
     std::unique_ptr<BaseAST> exp;
 
     void dump_koopa(IRGenerator &irgen, std::ostream &out) const override;

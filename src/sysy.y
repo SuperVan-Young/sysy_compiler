@@ -248,8 +248,16 @@ LVal
   }
 
 Stmt
-  : RETURN Exp ';' {
+  : LVal '=' Exp ';' {
     auto ast = new StmtAST();
+    ast->type = STMT_AST_TYPE_0;
+    ast->lval = unique_ptr<BaseAST>($1);
+    ast->exp = unique_ptr<BaseAST>($3);
+    $$ = ast;
+  }
+  | RETURN Exp ';' {
+    auto ast = new StmtAST();
+    ast->type = STMT_AST_TYPE_1;
     ast->exp = unique_ptr<BaseAST>($2);
     $$ = ast;
   }
