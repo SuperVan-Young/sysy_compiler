@@ -71,7 +71,7 @@ void StmtAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
         // lval shouldn't be const
         auto lval_name = dynamic_cast<LValAST *>(lval.get())->ident;
         assert(!irgen.symbol_table.is_const_entry(lval_name));
-        out << "  store " << r_val << " @" << lval_name << std::endl;
+        out << "  store " << r_val << ", @" << lval_name << std::endl;
     } else if (type == STMT_AST_TYPE_1) {
         // return
         exp->dump_koopa(irgen, out);
