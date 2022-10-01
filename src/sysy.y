@@ -48,10 +48,13 @@ using namespace std;
 // Non-terminating tokens
 %type <ast_val> FuncDef 
                 Block OptionalBlockItem BlockItem
-                Decl ConstDecl ConstDef OptionalConstDef ConstInitVal 
+                /* Decl ConstDecl ConstDef OptionalConstDef ConstInitVal  */
                 Stmt 
-                ConstExp Exp LOrExp LAndExp EqExp RelExp AddExp MulExp UnaryExp PrimaryExp LVal
-%type <str_val> FuncType BType
+                /* ConstExp  */
+                Exp LOrExp LAndExp EqExp RelExp AddExp MulExp UnaryExp PrimaryExp
+                /* LVal */
+%type <str_val> FuncType
+                /* BType */
                 UnaryOp MulOp AddOp RelOp EqOp
 %type <int_val> Number
 
@@ -65,6 +68,7 @@ CompUnit
   }
   ;
 
+/*
 Decl
   : ConstDecl {
     $$ = $1;
@@ -131,6 +135,7 @@ BType
     $$ = new std::string("int");
   }
   ;
+*/
 
 FuncDef
   : FuncType IDENT '(' ')' Block {
@@ -165,23 +170,22 @@ Block
 OptionalBlockItem
   : BlockItem OptionalBlockItem {
     auto ast = $1;
-    ((DeclDefAST*)ast)->next = ((DeclDefAST*)$2);
+    ((BlockItemAST*)ast)->next = ((BlockItemAST*)$2);
     $$ = ast;
   }
   | {
-    auto ast = new BlockItemAST();
-    $$ = ast;
+    $$ = nullptr;
   }
   ;
 
-BlockItem
-  : Decl{
+/* : Decl{
     auto ast = new BlockItemAST();
     ast->type = BLOCK_ITEM_AST_TYPE_0;
     ast->item = unique_ptr<BaseAST>($1);
     $$ = ast;
-  }
-  | Stmt {
+  } */
+BlockItem
+  : Stmt {
     auto ast = new BlockItemAST();
     ast->type = BLOCK_ITEM_AST_TYPE_1;
     ast->item = unique_ptr<BaseAST>($1);
@@ -189,12 +193,12 @@ BlockItem
   }
   ;
 
-LVal
+/* LVal
   : IDENT {
     auto ast = new LValAST();
     ast->ident = *unique_ptr<std::string>($1);
     $$ = ast;
-  }
+  } */
 
 Stmt
   : RETURN Exp ';' {
@@ -351,12 +355,12 @@ PrimaryExp
     ast->number = $1;
     $$ = ast;
   }
-  | LVal {
+  /* | LVal {
     auto ast = new PrimaryExpAST();
     ast->type = PRIMARY_EXP_AST_TYPE_2;
     ast->lval = unique_ptr<BaseAST>($1);
     $$ = ast;
-  }
+  } */
   ;
 
 UnaryOp
