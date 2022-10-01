@@ -111,7 +111,10 @@ class StmtAST : public BaseAST {
 
 class CalcAST : public BaseAST {
    public:
-    virtual bool calc_val(IRGenerator &irgen, int &result) const = 0;
+    // Calculate AST's value, and store the result in the given reference.
+    // calc_const forces to use const value.
+    // Return true if we can determine that the calculated value is const
+    virtual bool calc_val(IRGenerator &irgen, int &result, bool calc_const) const = 0;
 };
 
 // ConstExp      ::= Exp
@@ -122,7 +125,7 @@ class ExpAST : public CalcAST {
     std::unique_ptr<BaseAST> binary_exp;
 
     void dump_koopa(IRGenerator &irgen, std::ostream &out) const override;
-    bool calc_val(IRGenerator &irgen, int &result) const override;
+    bool calc_val(IRGenerator &irgen, int &result, bool calc_const) const override;
 };
 
 typedef enum {
@@ -144,7 +147,7 @@ class BinaryExpAST : public CalcAST {
     std::unique_ptr<BaseAST> r_exp;
 
     void dump_koopa(IRGenerator &irgen, std::ostream &out) const override;
-    bool calc_val(IRGenerator &irgen, int &result) const override;
+    bool calc_val(IRGenerator &irgen, int &result, bool calc_const) const override;
 };
 
 typedef enum {
@@ -161,7 +164,7 @@ class UnaryExpAST : public CalcAST {
     std::unique_ptr<BaseAST> unary_exp;
 
     void dump_koopa(IRGenerator &irgen, std::ostream &out) const override;
-    bool calc_val(IRGenerator &irgen, int &result) const override;
+    bool calc_val(IRGenerator &irgen, int &result, bool calc_const) const override;
 };
 
 typedef enum {
@@ -178,7 +181,7 @@ class PrimaryExpAST : public CalcAST {
     std::unique_ptr<BaseAST> lval;
 
     void dump_koopa(IRGenerator &irgen, std::ostream &out) const override;
-    bool calc_val(IRGenerator &irgen, int &result) const override;
+    bool calc_val(IRGenerator &irgen, int &result, bool calc_const) const override;
 };
 
 class LValAST : public CalcAST {
@@ -186,5 +189,5 @@ class LValAST : public CalcAST {
     std::string ident;
 
     void dump_koopa(IRGenerator &irgen, std::ostream &out) const override;
-    bool calc_val(IRGenerator &irgen, int &result) const override;
+    bool calc_val(IRGenerator &irgen, int &result, bool calc_const) const override;
 };
