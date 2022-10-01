@@ -47,6 +47,7 @@ int main(int argc, const char *argv[]) {
         TargetCodeGenerator backend(koopa_log.c_str(), out);
         int ret = backend.dump_riscv();
         assert(!ret);
+        out.close();
     }
 
     return 0;

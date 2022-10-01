@@ -1,31 +1,11 @@
 #include <tcgen.h>
 
-TargetCodeGenerator::TargetCodeGenerator(const char *koopa_file,
-                                         std::ostream &out) {
-    // build koopa raw program
-    koopa_program_t program;
-    koopa_error_code_t ret = koopa_parse_from_file(koopa_file, &program);
-    assert(ret == KOOPA_EC_SUCCESS);
-    builder = koopa_new_raw_program_builder();
-    raw = koopa_build_raw_program(builder, program);
-    koopa_delete_program(program);
-}
-
-TargetCodeGenerator::~TargetCodeGenerator() {
-    koopa_delete_raw_program_builder(builder);
-    out.close();
-}
-
 int TargetCodeGenerator::dump_riscv() {
     out << "  .text" << std::endl;
     out << "  .globl main" << std::endl;
     int ret = dump_koopa_raw_slice(raw.funcs);
     return ret;
 }
-
-/*******************************************************************************
- * Dumping to Riscv
- ******************************************************************************/
 
 void TargetCodeGenerator::dump_riscv_inst(std::string inst,
                                           std::string reg_0 = "",
@@ -49,10 +29,6 @@ void TargetCodeGenerator::dump_riscv_inst(std::string inst,
     }
 }
 
-/**
- * @brief A universal handler for koopa_raw_slice.
- * It checks kind and choose a proper handling function.
- */
 int TargetCodeGenerator::dump_koopa_raw_slice(koopa_raw_slice_t slice) {
     for (size_t i = 0; i < slice.len; i++) {
         const void *p = slice.buffer[i];
@@ -71,10 +47,47 @@ int TargetCodeGenerator::dump_koopa_raw_slice(koopa_raw_slice_t slice) {
     return 0;
 }
 
-/**
- * @brief A universal handler for koopa_raw_value instruction.
- * It checks value.kind.tag and properly handles it.
- */
+int TargetCodeGenerator::dump_koopa_raw_function(koopa_raw_function_t func) {
+    // function name, ignore first character
+    out << func->name + 1 << ":" << std::endl;
+
+    runtime_stack.push(StackFrame(func->bbs));
+    // prologue insts
+    int frame_length = runtime_stack.top().get_length();
+    if (frame_length <= 2048)
+        dump_riscv_inst("addi", "sp", "sp", std::to_string(-frame_length));
+    else {
+        dump_riscv_inst("li", "t0", std::to_string(-frame_length));
+        dump_riscv_inst("add", "sp", "sp", "t0");
+        // length will never be used, so everyone can use t0 later
+    }
+
+    int ret = dump_koopa_raw_slice(func->bbs);
+
+    // for function without a return inst, we add a default one.
+    // TODO: return inst should add this too.
+    if (!runtime_stack.top().is_returned) {
+        // epilogue insts
+        if (frame_length <= 2048)
+            dump_riscv_inst("addi", "sp", "sp", std::to_string(frame_length));
+        else {
+            dump_riscv_inst("li", "t0", std::to_string(frame_length));
+            dump_riscv_inst("add", "sp", "sp", "t0");
+        }
+        runtime_stack.top().is_returned = true;
+        dump_riscv_inst("ret");
+    }
+    runtime_stack.pop();
+
+    return ret;
+}
+
+int TargetCodeGenerator::dump_koopa_raw_basic_block(
+    koopa_raw_basic_block_t bb) {
+    int ret = dump_koopa_raw_slice(bb->insts);
+    return ret;
+}
+
 int TargetCodeGenerator::dump_koopa_raw_value_inst(koopa_raw_value_t value) {
     auto tag = value->kind.tag;
     if (tag == KOOPA_RVT_BINARY) {
@@ -215,16 +228,4 @@ int TargetCodeGenerator::dump_koopa_raw_value_inst(koopa_raw_value_t value) {
         std::cerr << "invalid value type." << std::endl;
         return -1;
     }
-}
-
-int TargetCodeGenerator::dump_koopa_raw_function(koopa_raw_function_t func) {
-    out << func->name + 1 << ":" << std::endl;
-    int ret = dump_koopa_raw_slice(func->bbs);
-    return ret;
-}
-
-int TargetCodeGenerator::dump_koopa_raw_basic_block(
-    koopa_raw_basic_block_t bb) {
-    int ret = dump_koopa_raw_slice(bb->insts);
-    return ret;
 }

@@ -69,6 +69,8 @@ class StackFrame {
     int length;
 
    public:
+    bool is_returned = false;
+
     StackFrame(koopa_raw_slice_t bb_slice) {
         assert(bb_slice.kind == KOOPA_RSIK_BASIC_BLOCK);
         for (size_t i = 0; i < bb_slice.len; i++) {
@@ -85,6 +87,8 @@ class StackFrame {
                 entries.insert(std::make_pair(val, stack_info));
             }
         }
+        // length align to 16
+        length = ((length + 15) >> 4) << 4;
     }
 
     StackInfo get_info(koopa_raw_value_t val) {
@@ -104,8 +108,15 @@ class TargetCodeGenerator {
     RegisterFile regfiles;
     std::stack<StackFrame> runtime_stack;
 
-    TargetCodeGenerator(const char *koopa_file, std::ostream &out);
-    ~TargetCodeGenerator();
+    TargetCodeGenerator(const char *koopa_file, std::ostream &out) {
+        koopa_program_t program;
+        koopa_error_code_t ret = koopa_parse_from_file(koopa_file, &program);
+        assert(ret == KOOPA_EC_SUCCESS);
+        builder = koopa_new_raw_program_builder();
+        raw = koopa_build_raw_program(builder, program);
+        koopa_delete_program(program);
+    }
+    ~TargetCodeGenerator() { koopa_delete_raw_program_builder(builder); }
 
     int dump_riscv();
 
@@ -117,7 +128,7 @@ class TargetCodeGenerator {
                          std::string reg_2);
 
     int dump_koopa_raw_slice(koopa_raw_slice_t slice);
-    int dump_koopa_raw_value_inst(koopa_raw_value_t value);
     int dump_koopa_raw_function(koopa_raw_function_t func);
     int dump_koopa_raw_basic_block(koopa_raw_basic_block_t bb);
+    int dump_koopa_raw_value_inst(koopa_raw_value_t value);
 };
