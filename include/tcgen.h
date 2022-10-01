@@ -46,7 +46,7 @@ class RegisterFile {
     }
 
     koopa_raw_value_t read_value(std::string reg) {
-        for (auto &e: user_regs) 
+        for (auto &e : user_regs)
             if (e.first == reg) return e.second.val;
         return nullptr;
     }
@@ -58,7 +58,43 @@ class RegisterFile {
     }
 };
 
-class StackFrame {};
+class StackInfo {
+   public:
+    int offset;
+};
+
+class StackFrame {
+   private:
+    std::map<koopa_raw_value_t, StackInfo> entries;
+    int length;
+
+   public:
+    StackFrame(koopa_raw_slice_t bb_slice) {
+        assert(bb_slice.kind == KOOPA_RSIK_BASIC_BLOCK);
+        for (size_t i = 0; i < bb_slice.len; i++) {
+            auto bb = (koopa_raw_basic_block_t)bb_slice.buffer[i];
+            auto val_slice = bb->insts;
+            assert(val_slice.kind == KOOPA_RSIK_VALUE);
+            for (size_t j = 0; j < val_slice.len; j++) {
+                auto val = (koopa_raw_value_t)val_slice.buffer[i];
+                StackInfo stack_info;
+                // check val type
+                if (val->ty->tag == KOOPA_RTT_UNIT) continue;
+                stack_info.offset = length;
+                length += 4;
+                entries.insert(std::make_pair(val, stack_info));
+            }
+        }
+    }
+
+    StackInfo get_info(koopa_raw_value_t val) {
+        auto it = entries.find(val);
+        assert(it != entries.end());
+        return it->second;
+    }
+
+    int get_length() { return length; }
+};
 
 class TargetCodeGenerator {
    public:
