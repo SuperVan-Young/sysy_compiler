@@ -18,12 +18,14 @@ class SymbolTable {
    public:
     bool exist_entry(std::string name) {
         auto iter = entries.find(name);
-        return iter == entries.end();
+        return iter != entries.end();
     }
 
     void insert_entry(std::string name, SymbolTableEntry entry) {
         // the following code cannot insert existed name
         entries.insert(std::pair<std::string, SymbolTableEntry>(name, entry));
+
+        
     }
 
     bool get_entry_val(std::string name, int &val) {
@@ -53,6 +55,6 @@ class IRGenerator {
     }
     std::string new_block() {
         auto block = cnt_block++;
-        return "%b_" + std::to_string(block);
+        return "%bb_" + std::to_string(block);
     }
 };

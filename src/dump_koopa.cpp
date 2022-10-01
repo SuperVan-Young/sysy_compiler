@@ -157,7 +157,15 @@ void PrimaryExpAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
         return;
     } else if (type == PRIMARY_EXP_AST_TYPE_2) {
         // lval
-        // TODO: finish this part and let parent node know!
+        // symbol board should have a token
+        auto name = dynamic_cast<LValAST*>(lval.get())->ident;
+        int val;
+        assert(irgen.symbol_table.exist_entry(name));
+
+        // for now, lval is only const, and must have initial value
+        assert(irgen.symbol_table.get_entry_val(name, val));
+        irgen.stack_val.push(std::to_string(val));
+        return;
     } else {
         std::cerr << "Invalid primary exp type: " << type << std::endl;
         assert(false);
