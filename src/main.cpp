@@ -7,7 +7,7 @@
 #include <memory>
 
 #include "ast.h"
-#include "backend.h"
+#include "tcgen.h"
 
 using namespace std;
 
@@ -42,7 +42,9 @@ int main(int argc, const char *argv[]) {
 
     // dumping riscv
     if (mode == "-riscv") {
-        KoopaRiscvBackend backend(koopa_log.c_str(), output.c_str());
+        out.open(output, std::ios::out);
+        assert(out.is_open());
+        TargetCodeGenerator backend(koopa_log.c_str(), out);
         int ret = backend.dump_riscv();
         assert(!ret);
     }

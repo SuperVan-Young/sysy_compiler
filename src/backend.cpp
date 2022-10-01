@@ -1,7 +1,7 @@
-#include <backend.h>
+#include <tcgen.h>
 
-KoopaRiscvBackend::KoopaRiscvBackend(const char *koopa_file,
-                                     const char *riscv_file) {
+TargetCodeGenerator::TargetCodeGenerator(const char *koopa_file,
+                                         std::ostream &out) {
     // build koopa raw program
     koopa_program_t program;
     koopa_error_code_t ret = koopa_parse_from_file(koopa_file, &program);
@@ -9,29 +9,14 @@ KoopaRiscvBackend::KoopaRiscvBackend(const char *koopa_file,
     builder = koopa_new_raw_program_builder();
     raw = koopa_build_raw_program(builder, program);
     koopa_delete_program(program);
-
-    // open output file
-    out.open(riscv_file, std::ios::out);
-    assert(out.is_open());
-
-    // innitialize regfile
-    tmp_regs.clear();
-    for (int i = 0; i <= 7; i++) {
-        std::string name = "a" + std::to_string(i);
-        tmp_regs.push_back({name, nullptr});
-    }
-    for (int i = 0; i <= 6; i++) {
-        std::string name = "t" + std::to_string(i);
-        tmp_regs.push_back({name, nullptr});
-    }
 }
 
-KoopaRiscvBackend::~KoopaRiscvBackend() {
+TargetCodeGenerator::~TargetCodeGenerator() {
     koopa_delete_raw_program_builder(builder);
     out.close();
 }
 
-int KoopaRiscvBackend::dump_riscv() {
+int TargetCodeGenerator::dump_riscv() {
     out << "  .text" << std::endl;
     out << "  .globl main" << std::endl;
     int ret = dump_koopa_raw_slice(raw.funcs);
@@ -39,39 +24,13 @@ int KoopaRiscvBackend::dump_riscv() {
 }
 
 /*******************************************************************************
- * Regfile Operations
- ******************************************************************************/
-
-// Find name of register containing val
-std::string KoopaRiscvBackend::find_tmp_reg(koopa_raw_value_t val) {
-    for (auto &reg : tmp_regs)
-        if (reg.val == val) return reg.name;
-    return "";
-}
-
-std::string KoopaRiscvBackend::new_tmp_reg(koopa_raw_value_t val) {
-    for (auto &reg : tmp_regs)
-        if (reg.val == nullptr) return reg.name;
-    return "";
-}
-
-void KoopaRiscvBackend::write_tmp_reg(koopa_raw_value_t val, std::string name) {
-    for (auto &reg : tmp_regs)
-        if (reg.name == name) {
-            reg.val = val;
-            return;
-        }
-    assert(false);
-}
-
-/*******************************************************************************
  * Dumping to Riscv
  ******************************************************************************/
 
-void KoopaRiscvBackend::dump_riscv_inst(std::string inst,
-                                        std::string reg_0 = "",
-                                        std::string reg_1 = "",
-                                        std::string reg_2 = "") {
+void TargetCodeGenerator::dump_riscv_inst(std::string inst,
+                                          std::string reg_0 = "",
+                                          std::string reg_1 = "",
+                                          std::string reg_2 = "") {
     out << "  ";
     out << std::left << std::setw(6) << inst;
     if (reg_0 == "")
@@ -94,7 +53,7 @@ void KoopaRiscvBackend::dump_riscv_inst(std::string inst,
  * @brief A universal handler for koopa_raw_slice.
  * It checks kind and choose a proper handling function.
  */
-int KoopaRiscvBackend::dump_koopa_raw_slice(koopa_raw_slice_t slice) {
+int TargetCodeGenerator::dump_koopa_raw_slice(koopa_raw_slice_t slice) {
     for (size_t i = 0; i < slice.len; i++) {
         const void *p = slice.buffer[i];
         int ret;
@@ -116,7 +75,7 @@ int KoopaRiscvBackend::dump_koopa_raw_slice(koopa_raw_slice_t slice) {
  * @brief A universal handler for koopa_raw_value instruction.
  * It checks value.kind.tag and properly handles it.
  */
-int KoopaRiscvBackend::dump_koopa_raw_value_inst(koopa_raw_value_t value) {
+int TargetCodeGenerator::dump_koopa_raw_value_inst(koopa_raw_value_t value) {
     auto tag = value->kind.tag;
     if (tag == KOOPA_RVT_BINARY) {
         auto op = value->kind.data.binary.op;
@@ -258,13 +217,14 @@ int KoopaRiscvBackend::dump_koopa_raw_value_inst(koopa_raw_value_t value) {
     }
 }
 
-int KoopaRiscvBackend::dump_koopa_raw_function(koopa_raw_function_t func) {
+int TargetCodeGenerator::dump_koopa_raw_function(koopa_raw_function_t func) {
     out << func->name + 1 << ":" << std::endl;
     int ret = dump_koopa_raw_slice(func->bbs);
     return ret;
 }
 
-int KoopaRiscvBackend::dump_koopa_raw_basic_block(koopa_raw_basic_block_t bb) {
+int TargetCodeGenerator::dump_koopa_raw_basic_block(
+    koopa_raw_basic_block_t bb) {
     int ret = dump_koopa_raw_slice(bb->insts);
     return ret;
 }
