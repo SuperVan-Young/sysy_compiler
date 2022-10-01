@@ -81,7 +81,7 @@ ConstDecl
   : CONST BType ConstDef OptionalConstDef ';' {
     auto ast = new DeclAST();
     ast->is_const = true;
-    ast->btype = *unique_ptr<string>($2);
+    ast->btype = *unique_ptr<std::string>($2);
     ast->defs.push_back(unique_ptr<BaseAST>($3));
     DeclDefAST* cur = (DeclDefAST*)$4;
     DeclDefAST* tmp;
@@ -134,7 +134,7 @@ VarDecl
   : BType VarDef OptionalVarDef ';' {
     auto ast = new DeclAST();
     ast->is_const = false;
-    ast->btype = *unique_ptr<BaseAST>($1);
+    ast->btype = *unique_ptr<std::string>($1);
     ast->defs.push_back(unique_ptr<BaseAST>($2));
     DeclDefAST* cur = (DeclDefAST*)$3;
     DeclDefAST* tmp;

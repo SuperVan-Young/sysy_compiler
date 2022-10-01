@@ -3,7 +3,7 @@
 // check if exp's operand is named or temp symbol
 bool is_symbol(std::string operand) {
     auto c = operand[0];
-    return c == '%' || c != '@';
+    return c == '%' || c == '@';
 }
 
 void CompUnitAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
@@ -64,6 +64,14 @@ void BlockItemAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
 void StmtAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
     if (type == STMT_AST_TYPE_0) {
         // assign
+        exp->dump_koopa(irgen, out);
+        auto r_val = irgen.stack_val.top();
+        irgen.stack_val.pop();
+
+        // lval shouldn't be const
+        auto lval_name = dynamic_cast<LValAST *>(lval.get())->ident;
+        assert(!irgen.symbol_table.is_const_entry(lval_name));
+        out << "  store " << r_val << " @" << lval_name << std::endl;
     } else if (type == STMT_AST_TYPE_1) {
         // return
         exp->dump_koopa(irgen, out);
@@ -73,10 +81,6 @@ void StmtAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
     } else {
         assert(false);
     }
-    exp->dump_koopa(irgen, out);
-    auto exp = irgen.stack_val.top();
-    irgen.stack_val.pop();
-    out << "  ret " << exp << std::endl;
 }
 
 void ExpAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
