@@ -8,6 +8,7 @@
 
 class SymbolTableEntry {
    public:
+    bool is_const;
     bool has_val;
     int val;
 };
@@ -22,7 +23,7 @@ class SymbolTable {
     }
 
     void insert_entry(std::string name, SymbolTableEntry entry) {
-        // the following code cannot insert existed name
+        assert(!exist_entry(name));
         entries.insert(std::pair<std::string, SymbolTableEntry>(name, entry));
     }
 
@@ -30,6 +31,17 @@ class SymbolTable {
         auto &entry = entries[name];
         val = entry.val;
         return entry.has_val;
+    }
+
+    bool is_const_entry(std::string name) {
+        auto iter = entries.find(name);
+        return iter->second.is_const;
+    }
+
+    void write_entry_val(std::string name, int val) {
+        auto &entry = entries[name];
+        entry.val = val;
+        entry.has_val = true;
     }
 };
 
