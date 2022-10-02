@@ -12,10 +12,10 @@ bool BinaryExpAST::calc_val(IRGenerator &irgen, int &result, bool calc_const) co
     int lhs, rhs;
     bool ret = true;
 
-    if (type == BINARY_EXP_AST_TYPE_0) {
+    if (type == BINARY_EXP_AST_TYPE_R) {
         ret = dynamic_cast<CalcAST *>(r_exp.get())->calc_val(irgen, result, calc_const);
         return ret;
-    } else if (type == BINARY_EXP_AST_TYPE_1) {
+    } else if (type == BINARY_EXP_AST_TYPE_LR) {
         ret = ret && dynamic_cast<CalcAST *>(l_exp.get())->calc_val(irgen, lhs, calc_const);
         ret = ret && dynamic_cast<CalcAST *>(r_exp.get())->calc_val(irgen, rhs, calc_const);
 
@@ -59,10 +59,10 @@ bool BinaryExpAST::calc_val(IRGenerator &irgen, int &result, bool calc_const) co
 bool UnaryExpAST::calc_val(IRGenerator &irgen, int &result, bool calc_const) const {
     bool ret;
 
-    if (type == UNARY_EXP_AST_TYPE_0) {
+    if (type == UNARY_EXP_AST_TYPE_PRIMARY) {
         ret =
             dynamic_cast<CalcAST *>(primary_exp.get())->calc_val(irgen, result, calc_const);
-    } else if (type == UNARY_EXP_AST_TYPE_1) {
+    } else if (type == UNARY_EXP_AST_TYPE_UNARY) {
         ret = dynamic_cast<CalcAST *>(unary_exp.get())->calc_val(irgen, result, calc_const);
         if (op == "!") {
             result = !result;
@@ -80,12 +80,12 @@ bool UnaryExpAST::calc_val(IRGenerator &irgen, int &result, bool calc_const) con
 }
 
 bool PrimaryExpAST::calc_val(IRGenerator &irgen, int &result, bool calc_const) const {
-    if (type == PRIMARY_EXP_AST_TYPE_0) {
+    if (type == PRIMARY_EXP_AST_TYPE_EXP) {
         return dynamic_cast<CalcAST *>(exp.get())->calc_val(irgen, result, calc_const);
-    } else if (type == PRIMARY_EXP_AST_TYPE_1) {
+    } else if (type == PRIMARY_EXP_AST_TYPE_NUMBER) {
         result = number;
         return true;
-    } else if (type == PRIMARY_EXP_AST_TYPE_2) {
+    } else if (type == PRIMARY_EXP_AST_TYPE_LVAL) {
         return dynamic_cast<CalcAST *>(lval.get())->calc_val(irgen, result, calc_const);
     } else {
         assert(false);

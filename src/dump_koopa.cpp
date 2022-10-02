@@ -102,7 +102,7 @@ void BlockItemAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
 }
 
 void StmtAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
-    if (type == STMT_AST_TYPE_0) {
+    if (type == STMT_AST_TYPE_ASSIGN) {
         // assign
         exp->dump_koopa(irgen, out);
         auto r_val = irgen.stack_val.top();
@@ -113,7 +113,7 @@ void StmtAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
         assert(!irgen.symbol_table.is_const_entry(lval_name));
         auto aliased_lval_name = irgen.symbol_table.get_aliased_name(lval_name);
         out << "  store " << r_val << ", @" << aliased_lval_name << std::endl;
-    } else if (type == STMT_AST_TYPE_1) {
+    } else if (type == STMT_AST_TYPE_RETURN) {
         // return
         if (exp.get() != nullptr) {
             exp->dump_koopa(irgen, out);
@@ -125,13 +125,13 @@ void StmtAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
         }
         irgen.control_flow.modify_ending_status(
             BASIC_BLOCK_ENDING_STATUS_RETURN);  // block should return
-    } else if (type == STMT_AST_TYPE_2) {
+    } else if (type == STMT_AST_TYPE_EXP) {
         // exp
         if (exp.get() != nullptr) {
             exp->dump_koopa(irgen, out);
             irgen.stack_val.pop();  // no one use it
         }
-    } else if (type == STMT_AST_TYPE_3) {
+    } else if (type == STMT_AST_TYPE_BLOCK) {
         // block
         block->dump_koopa(irgen, out);
     } else {
@@ -145,10 +145,10 @@ void ExpAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
 }
 
 void BinaryExpAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
-    if (type == BINARY_EXP_AST_TYPE_0) {
+    if (type == BINARY_EXP_AST_TYPE_R) {
         r_exp->dump_koopa(irgen, out);
         return;  // needless to operate on stack
-    } else if (type == BINARY_EXP_AST_TYPE_1) {
+    } else if (type == BINARY_EXP_AST_TYPE_LR) {
         // dump &  fetch sub exp values
         r_exp->dump_koopa(irgen, out);  // higher priority!
         l_exp->dump_koopa(irgen, out);
@@ -247,11 +247,11 @@ void BinaryExpAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
 }
 
 void UnaryExpAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
-    if (type == UNARY_EXP_AST_TYPE_0) {
+    if (type == UNARY_EXP_AST_TYPE_PRIMARY) {
         // primary_exp
         primary_exp->dump_koopa(irgen, out);
         return;  // needless to operate on stack
-    } else if (type == UNARY_EXP_AST_TYPE_1) {
+    } else if (type == UNARY_EXP_AST_TYPE_UNARY) {
         // unary_op unary_exp
         unary_exp->dump_koopa(irgen, out);
 
@@ -300,15 +300,15 @@ void UnaryExpAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
 }
 
 void PrimaryExpAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
-    if (type == PRIMARY_EXP_AST_TYPE_0) {
+    if (type == PRIMARY_EXP_AST_TYPE_EXP) {
         // exp
         exp->dump_koopa(irgen, out);
         return;  // needless to operate on stack
-    } else if (type == PRIMARY_EXP_AST_TYPE_1) {
+    } else if (type == PRIMARY_EXP_AST_TYPE_NUMBER) {
         // number
         irgen.stack_val.push(std::to_string(number));
         return;
-    } else if (type == PRIMARY_EXP_AST_TYPE_2) {
+    } else if (type == PRIMARY_EXP_AST_TYPE_LVAL) {
         // lval
         lval->dump_koopa(irgen, out);
         return;  // needless to operate on stack

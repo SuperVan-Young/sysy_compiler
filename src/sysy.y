@@ -49,7 +49,8 @@ using namespace std;
 %type <ast_val> FuncDef 
                 Decl ConstDecl ConstDef OptionalConstDef ConstInitVal 
                 VarDecl VarDef OptionalVarDef InitVal
-                Block OptionalBlockItem BlockItem Stmt 
+                Block OptionalBlockItem BlockItem
+                Stmt
                 LVal
                 ConstExp Exp LOrExp LAndExp EqExp RelExp AddExp MulExp UnaryExp PrimaryExp
 %type <str_val> FuncType
@@ -250,38 +251,38 @@ LVal
 Stmt
   : LVal '=' Exp ';' {
     auto ast = new StmtAST();
-    ast->type = STMT_AST_TYPE_0;
+    ast->type = STMT_AST_TYPE_ASSIGN;
     ast->lval = unique_ptr<BaseAST>($1);
     ast->exp = unique_ptr<BaseAST>($3);
     $$ = ast;
   }
   | Exp ';' {
     auto ast = new StmtAST();
-    ast->type = STMT_AST_TYPE_2;
+    ast->type = STMT_AST_TYPE_EXP;
     ast->exp = unique_ptr<BaseAST>($1);
     $$ = ast;
   }
   | ';' {
     auto ast = new StmtAST();
-    ast->type = STMT_AST_TYPE_2;
+    ast->type = STMT_AST_TYPE_EXP;
     ast->exp = unique_ptr<BaseAST>(nullptr);
     $$ = ast;
   }
   | Block {
     auto ast = new StmtAST();
-    ast->type = STMT_AST_TYPE_3;
+    ast->type = STMT_AST_TYPE_BLOCK;
     ast->block = unique_ptr<BaseAST>($1);
     $$ = ast;
   }
   | RETURN Exp ';' {
     auto ast = new StmtAST();
-    ast->type = STMT_AST_TYPE_1;
+    ast->type = STMT_AST_TYPE_RETURN;
     ast->exp = unique_ptr<BaseAST>($2);
     $$ = ast;
   }
   | RETURN ';' {
     auto ast = new StmtAST();
-    ast->type = STMT_AST_TYPE_1;
+    ast->type = STMT_AST_TYPE_RETURN;
     ast->exp = unique_ptr<BaseAST>(nullptr);
     $$ = ast;
   }
@@ -306,13 +307,13 @@ Exp
 LOrExp
   : LAndExp {
     auto ast = new BinaryExpAST();
-    ast->type = BINARY_EXP_AST_TYPE_0;
+    ast->type = BINARY_EXP_AST_TYPE_R;
     ast->r_exp = unique_ptr<BaseAST>($1);
     $$ = ast;
   }
   | LOrExp LOR LAndExp {
     auto ast = new BinaryExpAST();
-    ast->type = BINARY_EXP_AST_TYPE_1;
+    ast->type = BINARY_EXP_AST_TYPE_LR;
     ast->l_exp = unique_ptr<BaseAST>($1);
     ast->op = std::string(*$2);
     ast->r_exp = unique_ptr<BaseAST>($3);
@@ -324,13 +325,13 @@ LOrExp
 LAndExp
   : EqExp {
     auto ast = new BinaryExpAST();
-    ast->type = BINARY_EXP_AST_TYPE_0;
+    ast->type = BINARY_EXP_AST_TYPE_R;
     ast->r_exp = unique_ptr<BaseAST>($1);
     $$ = ast;
   }
   | LAndExp LAND EqExp {
     auto ast = new BinaryExpAST();
-    ast->type = BINARY_EXP_AST_TYPE_1;
+    ast->type = BINARY_EXP_AST_TYPE_LR;
     ast->l_exp = unique_ptr<BaseAST>($1);
     ast->op = std::string(*$2);
     ast->r_exp = unique_ptr<BaseAST>($3);
@@ -342,13 +343,13 @@ LAndExp
 EqExp
   : RelExp {
     auto ast = new BinaryExpAST();
-    ast->type = BINARY_EXP_AST_TYPE_0;
+    ast->type = BINARY_EXP_AST_TYPE_R;
     ast->r_exp = unique_ptr<BaseAST>($1);
     $$ = ast;
   }
   | EqExp EqOp RelExp {
     auto ast = new BinaryExpAST();
-    ast->type = BINARY_EXP_AST_TYPE_1;
+    ast->type = BINARY_EXP_AST_TYPE_LR;
     ast->l_exp = unique_ptr<BaseAST>($1);
     ast->op = std::string(*$2);
     ast->r_exp = unique_ptr<BaseAST>($3);
@@ -360,13 +361,13 @@ EqExp
 RelExp
   : AddExp {
     auto ast = new BinaryExpAST();
-    ast->type = BINARY_EXP_AST_TYPE_0;
+    ast->type = BINARY_EXP_AST_TYPE_R;
     ast->r_exp = unique_ptr<BaseAST>($1);
     $$ = ast;
   }
   | RelExp RelOp AddExp {
     auto ast = new BinaryExpAST();
-    ast->type = BINARY_EXP_AST_TYPE_1;
+    ast->type = BINARY_EXP_AST_TYPE_LR;
     ast->l_exp = unique_ptr<BaseAST>($1);
     ast->op = std::string(*$2);
     ast->r_exp = unique_ptr<BaseAST>($3);
@@ -378,13 +379,13 @@ RelExp
 AddExp
   : MulExp {
     auto ast = new BinaryExpAST();
-    ast->type = BINARY_EXP_AST_TYPE_0;
+    ast->type = BINARY_EXP_AST_TYPE_R;
     ast->r_exp = unique_ptr<BaseAST>($1);
     $$ = ast;
   }
   | AddExp AddOp MulExp {
     auto ast = new BinaryExpAST();
-    ast->type = BINARY_EXP_AST_TYPE_1;
+    ast->type = BINARY_EXP_AST_TYPE_LR;
     ast->l_exp = unique_ptr<BaseAST>($1);
     ast->op = std::string(*$2);
     ast->r_exp = unique_ptr<BaseAST>($3);
@@ -396,13 +397,13 @@ AddExp
 MulExp
   : UnaryExp {
     auto ast = new BinaryExpAST();
-    ast->type = BINARY_EXP_AST_TYPE_0;
+    ast->type = BINARY_EXP_AST_TYPE_R;
     ast->r_exp = unique_ptr<BaseAST>($1);
     $$ = ast;
   }
   | MulExp MulOp UnaryExp {
     auto ast = new BinaryExpAST();
-    ast->type = BINARY_EXP_AST_TYPE_1;
+    ast->type = BINARY_EXP_AST_TYPE_LR;
     ast->l_exp = unique_ptr<BaseAST>($1);
     ast->op = std::string(*$2);
     ast->r_exp = unique_ptr<BaseAST>($3);
@@ -414,13 +415,13 @@ MulExp
 UnaryExp
   : PrimaryExp {
     auto ast = new UnaryExpAST();
-    ast->type = UNARY_EXP_AST_TYPE_0;
+    ast->type = UNARY_EXP_AST_TYPE_PRIMARY;
     ast->primary_exp = unique_ptr<BaseAST>($1);
     $$ = ast;
   }
   | UnaryOp UnaryExp {
     auto ast = new UnaryExpAST();
-    ast->type = UNARY_EXP_AST_TYPE_1;
+    ast->type = UNARY_EXP_AST_TYPE_UNARY;
     ast->op = string(*$1);
     ast->unary_exp = unique_ptr<BaseAST>($2);
     delete $1;
@@ -431,19 +432,19 @@ UnaryExp
 PrimaryExp
   : '(' Exp ')' {
     auto ast = new PrimaryExpAST();
-    ast->type = PRIMARY_EXP_AST_TYPE_0;
+    ast->type = PRIMARY_EXP_AST_TYPE_EXP;
     ast->exp = unique_ptr<BaseAST>($2);
     $$ = ast;
   }
   | Number {
     auto ast = new PrimaryExpAST();
-    ast->type = PRIMARY_EXP_AST_TYPE_1;
+    ast->type = PRIMARY_EXP_AST_TYPE_NUMBER;
     ast->number = $1;
     $$ = ast;
   }
   | LVal {
     auto ast = new PrimaryExpAST();
-    ast->type = PRIMARY_EXP_AST_TYPE_2;
+    ast->type = PRIMARY_EXP_AST_TYPE_LVAL;
     ast->lval = unique_ptr<BaseAST>($1);
     $$ = ast;
   }

@@ -42,7 +42,7 @@ class DeclDefAST : public BaseAST {
     bool is_const;
     std::string ident;
     std::unique_ptr<BaseAST> init_val;  // could be null for var
-    DeclDefAST *next;  // for optional defs
+    DeclDefAST *next;                   // for optional defs
 
     void dump_koopa(IRGenerator &irgen, std::ostream &out) const override;
 };
@@ -94,15 +94,17 @@ class BlockItemAST : public BaseAST {
 };
 
 typedef enum {
-    STMT_AST_TYPE_0 = 0,  // assign
-    STMT_AST_TYPE_1,      // return
-    STMT_AST_TYPE_2,      // exp
-    STMT_AST_TYPE_3,      // block
+    STMT_AST_TYPE_ASSIGN,  // assign
+    STMT_AST_TYPE_RETURN,  // return
+    STMT_AST_TYPE_EXP,     // exp
+    STMT_AST_TYPE_BLOCK,   // block
+    STMT_AST_TYPE_IF,      // if
 } stmt_ast_type;
 
 // Stmt          ::= LVal "=" Exp ";"
 //                 | [Exp] ";"
 //                 | Block
+//                 | "if" "(" Exp ")" Stmt ["else" Stmt]
 //                 | "return" [Exp] ";"
 class StmtAST : public BaseAST {
    public:
@@ -110,6 +112,8 @@ class StmtAST : public BaseAST {
     std::unique_ptr<BaseAST> lval;
     std::unique_ptr<BaseAST> exp;
     std::unique_ptr<BaseAST> block;
+    std::unique_ptr<BaseAST> then_stmt;
+    std::unique_ptr<BaseAST> else_stmt;
 
     void dump_koopa(IRGenerator &irgen, std::ostream &out) const override;
 };
@@ -119,7 +123,8 @@ class CalcAST : public BaseAST {
     // Calculate AST's value, and store the result in the given reference.
     // calc_const forces to use const value, if not, raises errors.
     // Return true if we can determine that the calculated value is const
-    virtual bool calc_val(IRGenerator &irgen, int &result, bool calc_const) const = 0;
+    virtual bool calc_val(IRGenerator &irgen, int &result,
+                          bool calc_const) const = 0;
 };
 
 // ConstExp      ::= Exp
@@ -130,12 +135,13 @@ class ExpAST : public CalcAST {
     std::unique_ptr<BaseAST> binary_exp;
 
     void dump_koopa(IRGenerator &irgen, std::ostream &out) const override;
-    bool calc_val(IRGenerator &irgen, int &result, bool calc_const) const override;
+    bool calc_val(IRGenerator &irgen, int &result,
+                  bool calc_const) const override;
 };
 
 typedef enum {
-    BINARY_EXP_AST_TYPE_0 = 0,  // r_exp
-    BINARY_EXP_AST_TYPE_1       // l_exp op r_exp
+    BINARY_EXP_AST_TYPE_R = 0,  // r_exp
+    BINARY_EXP_AST_TYPE_LR      // l_exp op r_exp
 } binary_exp_ast_type;
 
 // MulExp        ::= UnaryExp | MulExp ("*" | "/" | "%") UnaryExp;
@@ -152,12 +158,13 @@ class BinaryExpAST : public CalcAST {
     std::unique_ptr<BaseAST> r_exp;
 
     void dump_koopa(IRGenerator &irgen, std::ostream &out) const override;
-    bool calc_val(IRGenerator &irgen, int &result, bool calc_const) const override;
+    bool calc_val(IRGenerator &irgen, int &result,
+                  bool calc_const) const override;
 };
 
 typedef enum {
-    UNARY_EXP_AST_TYPE_0 = 0,  // primary_exp
-    UNARY_EXP_AST_TYPE_1,      // unary_op unary_exp
+    UNARY_EXP_AST_TYPE_PRIMARY,  // primary_exp
+    UNARY_EXP_AST_TYPE_UNARY,    // unary_op unary_exp
 } unary_exp_ast_type;
 
 // UnaryExp      ::= PrimaryExp | UnaryOp UnaryExp;
@@ -169,13 +176,14 @@ class UnaryExpAST : public CalcAST {
     std::unique_ptr<BaseAST> unary_exp;
 
     void dump_koopa(IRGenerator &irgen, std::ostream &out) const override;
-    bool calc_val(IRGenerator &irgen, int &result, bool calc_const) const override;
+    bool calc_val(IRGenerator &irgen, int &result,
+                  bool calc_const) const override;
 };
 
 typedef enum {
-    PRIMARY_EXP_AST_TYPE_0 = 0,  // exp
-    PRIMARY_EXP_AST_TYPE_1,      // number
-    PRIMARY_EXP_AST_TYPE_2,      // lval
+    PRIMARY_EXP_AST_TYPE_EXP = 0,  // exp
+    PRIMARY_EXP_AST_TYPE_NUMBER,   // number
+    PRIMARY_EXP_AST_TYPE_LVAL,     // lval
 } primary_exp_ast_type;
 
 class PrimaryExpAST : public CalcAST {
@@ -186,7 +194,8 @@ class PrimaryExpAST : public CalcAST {
     std::unique_ptr<BaseAST> lval;
 
     void dump_koopa(IRGenerator &irgen, std::ostream &out) const override;
-    bool calc_val(IRGenerator &irgen, int &result, bool calc_const) const override;
+    bool calc_val(IRGenerator &irgen, int &result,
+                  bool calc_const) const override;
 };
 
 class LValAST : public CalcAST {
@@ -194,5 +203,6 @@ class LValAST : public CalcAST {
     std::string ident;
 
     void dump_koopa(IRGenerator &irgen, std::ostream &out) const override;
-    bool calc_val(IRGenerator &irgen, int &result, bool calc_const) const override;
+    bool calc_val(IRGenerator &irgen, int &result,
+                  bool calc_const) const override;
 };
