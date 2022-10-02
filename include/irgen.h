@@ -43,9 +43,8 @@ typedef enum {
 class BasicBlockInfo {
    public:
     basic_block_ending_status_t ending;
-    std::string next;
 
-    BasicBlockInfo() : ending(BASIC_BLOCK_ENDING_STATUS_NULL), next("") {}
+    BasicBlockInfo() : ending(BASIC_BLOCK_ENDING_STATUS_NULL) {}
 };
 
 class ControlFlow {
@@ -53,10 +52,8 @@ class ControlFlow {
     std::map<std::string, BasicBlockInfo> cfg;
    public:
     std::string cur_block = "";
-    bool to_next_block = false;
 
     void insert_info(std::string name, BasicBlockInfo info);
-    void switch_control();
     basic_block_ending_status_t check_ending_status();
     void modify_ending_status(basic_block_ending_status_t status);
 };

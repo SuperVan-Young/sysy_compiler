@@ -41,7 +41,7 @@ void DeclDefAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
         out << "  @" << aliased_name << " = alloc i32" << std::endl;
         if (init_val.get()) {
             out << "  store " << store_val << ", @" << aliased_name
-            << std::endl;
+                << std::endl;
         }
     }
 }
@@ -56,7 +56,6 @@ void FuncDefAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
     auto block_name = irgen.new_block();
     irgen.control_flow.insert_info(block_name, block_info);
     irgen.control_flow.cur_block = block_name;
-    irgen.control_flow.to_next_block = false;
     out << block_name << ":" << std::endl;
 
     block->dump_koopa(irgen, out);
@@ -69,17 +68,12 @@ void FuncDefAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
         out << "  ret 1919810" << std::endl;  // return random const
     }
     irgen.control_flow.cur_block = "";
-    irgen.control_flow.to_next_block = false;
 
     out << "}" << std::endl;
 }
 
 void BlockAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
     irgen.symbol_table.push_block();
-    if (irgen.control_flow.to_next_block) {
-        irgen.control_flow.switch_control();
-        out << irgen.control_flow.cur_block << ":" << std::endl;
-    }
 
     for (auto &item : items) {
         item->dump_koopa(irgen, out);
@@ -99,6 +93,21 @@ void BlockAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
 
 void BlockItemAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
     item->dump_koopa(irgen, out);
+}
+
+// dump stmt and take care of control flow
+static void dump_koopa_if_stmt(BaseAST *stmt, std::string cur_block,
+                               std::string end_block, IRGenerator &irgen,
+                               std::ostream &out) {
+    irgen.control_flow.cur_block = cur_block;
+    out << cur_block << ":" << std::endl;
+    stmt->dump_koopa(irgen, out);
+    // jump to ending when current block hasn't finished
+    if (irgen.control_flow.check_ending_status() ==
+        BASIC_BLOCK_ENDING_STATUS_NULL) {
+        out << "  jump " << end_block << std::endl;
+        irgen.control_flow.modify_ending_status(BASIC_BLOCK_ENDING_STATUS_JUMP);
+    }
 }
 
 void StmtAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
@@ -134,6 +143,43 @@ void StmtAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
     } else if (type == STMT_AST_TYPE_BLOCK) {
         // block
         block->dump_koopa(irgen, out);
+    } else if (type == STMT_AST_TYPE_IF) {
+        // if then else
+        // dump condition expression
+        assert(exp.get() != nullptr);
+        exp->dump_koopa(irgen, out);
+        auto cond = irgen.stack_val.top();
+        irgen.stack_val.pop();
+
+        // generate then, else, end basic blocks
+        assert(then_stmt.get() != nullptr);
+        auto then_block_name = irgen.new_block();
+        irgen.control_flow.insert_info(then_block_name, BasicBlockInfo());
+        auto end_block_name = irgen.new_block();
+        irgen.control_flow.insert_info(end_block_name, BasicBlockInfo());
+
+        irgen.control_flow.modify_ending_status(
+            BASIC_BLOCK_ENDING_STATUS_BRANCH);
+        if (else_stmt.get() != nullptr) {
+            auto else_block_name = irgen.new_block();
+            irgen.control_flow.insert_info(else_block_name, BasicBlockInfo());
+            out << "  br " << cond << ", " << then_block_name << ", "
+                << else_block_name << std::endl;
+
+            dump_koopa_if_stmt(then_stmt.get(), then_block_name, end_block_name,
+                               irgen, out);
+            dump_koopa_if_stmt(else_stmt.get(), else_block_name, end_block_name,
+                               irgen, out);
+
+        } else {
+            out << "  br " << cond << ", " << then_block_name << ", "
+                << end_block_name << std::endl;
+            dump_koopa_if_stmt(then_stmt.get(), then_block_name, end_block_name,
+                               irgen, out);
+        }
+
+        irgen.control_flow.cur_block = end_block_name;
+        out << end_block_name << ":" << std::endl;
     } else {
         assert(false);
     }
