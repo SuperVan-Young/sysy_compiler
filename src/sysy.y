@@ -40,7 +40,7 @@ using namespace std;
 }
 
 // manifest constant for lexer, representing terminating token
-%token INT RETURN CONST IF ELSE
+%token INT RETURN CONST IF ELSE WHILE BREAK CONTINUE
 %token <str_val> IDENT
 %token <int_val> INT_CONST
 %token <str_val> LE GE EQ NE LAND LOR
@@ -301,6 +301,23 @@ MatchedStmt
     auto ast = new StmtAST();
     ast->type = STMT_AST_TYPE_RETURN;
     ast->exp = unique_ptr<BaseAST>(nullptr);
+    $$ = ast;
+  }
+  | WHILE '(' Exp ')' Stmt {
+    auto ast = new StmtAST();
+    ast->type = STMT_AST_TYPE_WHILE;
+    ast->exp = unique_ptr<BaseAST>($3);
+    ast->do_stmt = unique_ptr<BaseAST>($5);
+    $$ = ast;
+  }
+  | BREAK ';' {
+    auto ast = new StmtAST();
+    ast->type = STMT_AST_TYPE_BREAK;
+    $$ = ast;
+  }
+  | CONTINUE ';' {
+    auto ast = new StmtAST();
+    ast->type = STMT_AST_TYPE_CONTINUE;
     $$ = ast;
   }
   ;

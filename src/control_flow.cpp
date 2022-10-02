@@ -17,3 +17,17 @@ void ControlFlow::modify_ending_status(basic_block_ending_status_t status) {
     assert(status != BASIC_BLOCK_ENDING_STATUS_NULL);
     info.ending = status;
 }
+
+std::string ControlFlow::get_dst_break(std::string name) {
+    if (name == "")
+        name = cur_block;
+    auto &info = cfg[name];
+    return info.dst_break;
+}
+
+std::string ControlFlow::get_dst_continue(std::string name) {
+    if (name == "")
+        name = cur_block;
+    auto &info = cfg[name];
+    return info.dst_continue;
+}

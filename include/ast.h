@@ -94,11 +94,14 @@ class BlockItemAST : public BaseAST {
 };
 
 typedef enum {
-    STMT_AST_TYPE_ASSIGN,  // assign
-    STMT_AST_TYPE_RETURN,  // return
-    STMT_AST_TYPE_EXP,     // exp
-    STMT_AST_TYPE_BLOCK,   // block
-    STMT_AST_TYPE_IF,      // if
+    STMT_AST_TYPE_ASSIGN,    // assign
+    STMT_AST_TYPE_RETURN,    // return
+    STMT_AST_TYPE_EXP,       // exp
+    STMT_AST_TYPE_BLOCK,     // block
+    STMT_AST_TYPE_IF,        // if
+    STMT_AST_TYPE_WHILE,     // while
+    STMT_AST_TYPE_BREAK,     // break
+    STMT_AST_TYPE_CONTINUE,  // continue
 } stmt_ast_type;
 
 // Stmt          ::= LVal "=" Exp ";"
@@ -114,6 +117,7 @@ class StmtAST : public BaseAST {
     std::unique_ptr<BaseAST> block;
     std::unique_ptr<BaseAST> then_stmt;
     std::unique_ptr<BaseAST> else_stmt;
+    std::unique_ptr<BaseAST> do_stmt;
 
     void dump_koopa(IRGenerator &irgen, std::ostream &out) const override;
 };
@@ -168,8 +172,8 @@ class UnaryExpAST : public CalcAST {
 };
 
 typedef enum {
-    PRIMARY_EXP_AST_TYPE_NUMBER,   // number
-    PRIMARY_EXP_AST_TYPE_LVAL,     // lval
+    PRIMARY_EXP_AST_TYPE_NUMBER,  // number
+    PRIMARY_EXP_AST_TYPE_LVAL,    // lval
 } primary_exp_ast_type;
 
 class PrimaryExpAST : public CalcAST {

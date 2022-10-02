@@ -112,7 +112,6 @@ static void dump_koopa_if_stmt(BaseAST *stmt, std::string cur_block,
 
 void StmtAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
     if (type == STMT_AST_TYPE_ASSIGN) {
-        // assign
         exp->dump_koopa(irgen, out);
         auto r_val = irgen.stack_val.top();
         irgen.stack_val.pop();
@@ -123,7 +122,6 @@ void StmtAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
         auto aliased_lval_name = irgen.symbol_table.get_aliased_name(lval_name);
         out << "  store " << r_val << ", @" << aliased_lval_name << std::endl;
     } else if (type == STMT_AST_TYPE_RETURN) {
-        // return
         if (exp.get() != nullptr) {
             exp->dump_koopa(irgen, out);
             auto ret_val = irgen.stack_val.top();
@@ -135,16 +133,13 @@ void StmtAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
         irgen.control_flow.modify_ending_status(
             BASIC_BLOCK_ENDING_STATUS_RETURN);  // block should return
     } else if (type == STMT_AST_TYPE_EXP) {
-        // exp
         if (exp.get() != nullptr) {
             exp->dump_koopa(irgen, out);
             irgen.stack_val.pop();  // no one use it
         }
     } else if (type == STMT_AST_TYPE_BLOCK) {
-        // block
         block->dump_koopa(irgen, out);
     } else if (type == STMT_AST_TYPE_IF) {
-        // if then else
         // dump condition expression
         assert(exp.get() != nullptr);
         exp->dump_koopa(irgen, out);
@@ -193,7 +188,53 @@ void StmtAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
             irgen.control_flow.cur_block = end_block_name;
             out << end_block_name << ":" << std::endl;
         }
+    } else if (type == STMT_AST_TYPE_WHILE) {
+        assert(exp.get() != nullptr);
+        assert(do_stmt.get() != nullptr);
 
+        // generate entry, body, end block
+        auto entry_block_name = irgen.new_block();
+        auto body_block_name = irgen.new_block();
+        auto end_block_name = irgen.new_block();
+        auto body_block_info = BasicBlockInfo();
+        body_block_info.dst_break = end_block_name;
+        body_block_info.dst_continue = entry_block_name;
+        irgen.control_flow.insert_info(entry_block_name, BasicBlockInfo());
+        irgen.control_flow.insert_info(body_block_name, body_block_info);
+        irgen.control_flow.insert_info(end_block_name, BasicBlockInfo());
+
+        // finish current block
+        out << "  jump " << entry_block_name << std::endl;
+        irgen.control_flow.modify_ending_status(BASIC_BLOCK_ENDING_STATUS_JUMP);
+
+        // dump entry block
+        irgen.control_flow.cur_block = entry_block_name;
+        out << entry_block_name << ":" << std::endl;
+        exp->dump_koopa(irgen, out);
+        auto cond = irgen.stack_val.top();
+        irgen.stack_val.pop();
+        out << "  br " << cond << ", " << body_block_name << ", "
+            << end_block_name << std::endl;
+
+        // dump body block, same as if-then-else stmt
+        dump_koopa_if_stmt(do_stmt.get(), body_block_name, entry_block_name,
+                           irgen, out);
+
+        // dump end block:
+        irgen.control_flow.cur_block = end_block_name;
+        out << end_block_name << ":" << std::endl;
+    } else if (type == STMT_AST_TYPE_BREAK) {
+        auto dst_break = irgen.control_flow.get_dst_break();
+        assert(dst_break != "");
+        out << "  jump " << dst_break;
+        irgen.control_flow.modify_ending_status(
+            BASIC_BLOCK_ENDING_STATUS_UNREACHABLE);
+    } else if (type == STMT_AST_TYPE_CONTINUE) {
+        auto dst_continue = irgen.control_flow.get_dst_continue();
+        assert(dst_continue != "");
+        out << "  jump " << dst_continue;
+        irgen.control_flow.modify_ending_status(
+            BASIC_BLOCK_ENDING_STATUS_UNREACHABLE);
     } else {
         assert(false);
     }

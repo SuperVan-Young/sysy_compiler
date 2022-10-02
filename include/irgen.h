@@ -2,11 +2,11 @@
 
 #include <cassert>
 #include <cstring>
+#include <iostream>
 #include <map>
 #include <stack>
 #include <utility>
 #include <vector>
-#include <iostream>
 
 class SymbolTableEntry {
    public:
@@ -44,18 +44,26 @@ typedef enum {
 class BasicBlockInfo {
    public:
     basic_block_ending_status_t ending;
+    std::string dst_break;
+    std::string dst_continue;
 
-    BasicBlockInfo() : ending(BASIC_BLOCK_ENDING_STATUS_NULL) {}
+    BasicBlockInfo()
+        : ending(BASIC_BLOCK_ENDING_STATUS_NULL),
+          dst_break(""),
+          dst_continue("") {}
 };
 
 class ControlFlow {
    private:
     std::map<std::string, BasicBlockInfo> cfg;
+
    public:
     std::string cur_block = "";
 
     void insert_info(std::string name, BasicBlockInfo info);
     basic_block_ending_status_t check_ending_status(std::string name = "");
+    std::string get_dst_break(std::string name = "");
+    std::string get_dst_continue(std::string name = "");
     void modify_ending_status(basic_block_ending_status_t status);
 };
 
