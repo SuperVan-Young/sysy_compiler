@@ -40,7 +40,7 @@ using namespace std;
 }
 
 // manifest constant for lexer, representing terminating token
-%token INT RETURN CONST
+%token INT RETURN CONST IF ELSE
 %token <str_val> IDENT
 %token <int_val> INT_CONST
 %token <str_val> LE GE EQ NE LAND LOR
@@ -50,7 +50,7 @@ using namespace std;
                 Decl ConstDecl ConstDef OptionalConstDef ConstInitVal 
                 VarDecl VarDef OptionalVarDef InitVal
                 Block OptionalBlockItem BlockItem
-                Stmt
+                Stmt MatchedStmt OpenStmt
                 LVal
                 ConstExp Exp LOrExp LAndExp EqExp RelExp AddExp MulExp UnaryExp PrimaryExp
 %type <str_val> FuncType
@@ -249,7 +249,24 @@ LVal
   }
 
 Stmt
-  : LVal '=' Exp ';' {
+  : MatchedStmt {
+    $$ = $1;
+  }
+  | OpenStmt {
+    $$ = $1;
+  }
+  ;
+
+MatchedStmt
+  : IF '(' Exp ')' MatchedStmt ELSE MatchedStmt {
+    auto ast = new StmtAST();
+    ast->type = STMT_AST_TYPE_IF;
+    ast->exp = unique_ptr<BaseAST>($3);
+    ast->then_stmt = unique_ptr<BaseAST>($5);
+    ast->else_stmt = unique_ptr<BaseAST>($7);
+    $$ = ast;
+  }
+  | LVal '=' Exp ';' {
     auto ast = new StmtAST();
     ast->type = STMT_AST_TYPE_ASSIGN;
     ast->lval = unique_ptr<BaseAST>($1);
@@ -287,6 +304,24 @@ Stmt
     $$ = ast;
   }
   ;
+
+OpenStmt
+  : IF '(' Exp ')' Stmt {
+    auto ast = new StmtAST();
+    ast->type = STMT_AST_TYPE_IF;
+    ast->exp = unique_ptr<BaseAST>($3);
+    ast->then_stmt = unique_ptr<BaseAST>($5);
+    ast->else_stmt = unique_ptr<BaseAST>(nullptr);
+    $$ = ast;
+  }
+  | IF '(' Exp ')' MatchedStmt ELSE OpenStmt {
+    auto ast = new StmtAST();
+    ast->type = STMT_AST_TYPE_IF;
+    ast->exp = unique_ptr<BaseAST>($3);
+    ast->then_stmt = unique_ptr<BaseAST>($5);
+    ast->else_stmt = unique_ptr<BaseAST>($7);
+    $$ = ast;
+  }
 
 ConstExp
   : Exp {
