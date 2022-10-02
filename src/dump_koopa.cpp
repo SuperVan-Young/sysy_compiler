@@ -1,32 +1,86 @@
 #include <ast.h>
 
+// check if exp's operand is named or temp symbol
+bool is_symbol(std::string operand) {
+    auto c = operand[0];
+    return c == '%' || c == '@';
+}
+
 void CompUnitAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
     func_def->dump_koopa(irgen, out);
 }
 
+void DeclAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
+    for (auto &def : defs) def->dump_koopa(irgen, out);
+}
+
+void DeclDefAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
+    assert(!irgen.symbol_table.exist_entry(ident));
+    SymbolTableEntry entry;
+
+    if (is_const) {
+        entry.is_const = true;
+        // add const entry into symbol table
+        auto exp = dynamic_cast<InitValAST *>(init_val.get())->exp.get();
+        dynamic_cast<CalcAST *>(exp)->calc_val(irgen, entry.val, true);
+        irgen.symbol_table.insert_entry(ident, entry);
+    } else {
+        entry.is_const = false;
+        // allocate memory for var
+        out << "  @" << ident << " = alloc i32" << std::endl;
+        // add var entry into symbol table
+        if (init_val.get()) {
+            // store initial value to memory, if there is
+            auto exp = dynamic_cast<InitValAST *>(init_val.get())->exp.get();
+            exp->dump_koopa(irgen, out);
+            auto store_val = irgen.stack_val.top();
+            irgen.stack_val.pop();
+            out << "  store " << store_val << ", @" << ident << std::endl;
+        }
+        irgen.symbol_table.insert_entry(ident, entry);
+    }
+}
+
 void FuncDefAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
-    out << "fun @" << ident;
-    out << "(): ";  // TODO: add params
-    func_type->dump_koopa(irgen, out);
-    out << " {" << std::endl;
-    out << "\%entry:" << std::endl;
+    out << "fun @" << ident << "(): "
+        << "i32"
+        << " {" << std::endl;
     block->dump_koopa(irgen, out);
     out << "}" << std::endl;
 }
 
-void FuncTypeAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
-    out << "i32";
+void BlockAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
+    auto block_name = irgen.new_block();
+    out << block_name << ":" << std::endl;
+    for (auto &item : items) {
+        item->dump_koopa(irgen, out);
+    }
 }
 
-void BlockAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
-    stmt->dump_koopa(irgen, out);
+void BlockItemAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
+    item->dump_koopa(irgen, out);
 }
 
 void StmtAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
-    exp->dump_koopa(irgen, out);
-    auto exp = irgen.stack_val.top();
-    irgen.stack_val.pop();
-    out << "  ret " << exp << std::endl;
+    if (type == STMT_AST_TYPE_0) {
+        // assign
+        exp->dump_koopa(irgen, out);
+        auto r_val = irgen.stack_val.top();
+        irgen.stack_val.pop();
+
+        // lval shouldn't be const
+        auto lval_name = dynamic_cast<LValAST *>(lval.get())->ident;
+        assert(!irgen.symbol_table.is_const_entry(lval_name));
+        out << "  store " << r_val << ", @" << lval_name << std::endl;
+    } else if (type == STMT_AST_TYPE_1) {
+        // return
+        exp->dump_koopa(irgen, out);
+        auto ret_val = irgen.stack_val.top();
+        irgen.stack_val.pop();
+        out << "  ret " << ret_val << std::endl;
+    } else {
+        assert(false);
+    }
 }
 
 void ExpAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
@@ -46,6 +100,45 @@ void BinaryExpAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
         irgen.stack_val.pop();
         auto r_val = irgen.stack_val.top();
         irgen.stack_val.pop();
+
+        // Optimization: calculate directly if l_val and r_val are const
+        if (!is_symbol(l_val) && !is_symbol(r_val)) {
+            int lhs = std::stoi(l_val);
+            int rhs = std::stoi(r_val);
+            int ret;
+            if (op == "+")
+                ret = lhs + rhs;
+            else if (op == "-")
+                ret = lhs - rhs;
+            else if (op == "*")
+                ret = lhs * rhs;
+            else if (op == "/")
+                ret = lhs / rhs;
+            else if (op == "%")
+                ret = lhs % rhs;
+            else if (op == "<")
+                ret = lhs < rhs;
+            else if (op == ">")
+                ret = lhs > rhs;
+            else if (op == "<=")
+                ret = lhs <= rhs;
+            else if (op == ">=")
+                ret = lhs >= rhs;
+            else if (op == "==")
+                ret = lhs == rhs;
+            else if (op == "!=")
+                ret = lhs != rhs;
+            else if (op == "&&")
+                ret = lhs && rhs;
+            else if (op == "||")
+                ret = lhs || rhs;
+            else {
+                std::cerr << "Invalid op: " << op << std::endl;
+                assert(false);
+            }
+            irgen.stack_val.push(std::to_string(ret));
+            return;
+        }
 
         // dump exp w.r.t. op
         if (op == "&&" || op == "||") {
@@ -109,6 +202,24 @@ void UnaryExpAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
         auto sub_val = irgen.stack_val.top();  // fetch sub expression's token
         irgen.stack_val.pop();
 
+        // Optimization: calculate directly if sub_val is const
+        if (!is_symbol(sub_val)) {
+            int val = std::stoi(sub_val);
+            int ret;
+            if (op == "!")
+                ret = !val;
+            else if (op == "-")
+                ret = -val;
+            else if (op == "+")
+                ret = val;
+            else {
+                std::cerr << "Invalid op: " << op << std::endl;
+                assert(false);
+            }
+            irgen.stack_val.push(std::to_string(ret));
+            return;
+        }
+
         // dump exp w.r.t op
         std::string exp_val;
         if (op == "!") {
@@ -141,7 +252,27 @@ void PrimaryExpAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
         // number
         irgen.stack_val.push(std::to_string(number));
         return;
+    } else if (type == PRIMARY_EXP_AST_TYPE_2) {
+        // lval
+        lval->dump_koopa(irgen, out);
+        return;  // needless to operate on stack
     } else {
+        std::cerr << "Invalid primary exp type: " << type << std::endl;
         assert(false);
+    }
+}
+
+void LValAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
+    assert(irgen.symbol_table.exist_entry(ident));
+
+    if (irgen.symbol_table.is_const_entry(ident)) {
+        int val;
+        irgen.symbol_table.get_entry_val(ident, val);
+        irgen.stack_val.push(std::to_string(val));
+    } else {
+        auto val = irgen.new_val();
+        out << "  " << val << " = load "
+            << "@" << ident << std::endl;
+        irgen.stack_val.push(val);
     }
 }

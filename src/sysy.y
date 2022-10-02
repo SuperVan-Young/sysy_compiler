@@ -40,15 +40,21 @@ using namespace std;
 }
 
 // manifest constant for lexer, representing terminating token
-%token INT RETURN
+%token INT RETURN CONST
 %token <str_val> IDENT
 %token <int_val> INT_CONST
 %token <str_val> LE GE EQ NE LAND LOR
 
 // Non-terminating tokens
-%type <ast_val> FuncDef FuncType Block Stmt Exp
-%type <ast_val> LOrExp LAndExp EqExp RelExp AddExp MulExp PrimaryExp UnaryExp
-%type <str_val> UnaryOp MulOp AddOp RelOp EqOp
+%type <ast_val> FuncDef 
+                Decl ConstDecl ConstDef OptionalConstDef ConstInitVal 
+                VarDecl VarDef OptionalVarDef InitVal
+                Block OptionalBlockItem BlockItem Stmt 
+                LVal
+                ConstExp Exp LOrExp LAndExp EqExp RelExp AddExp MulExp UnaryExp PrimaryExp
+%type <str_val> FuncType
+                BType
+                UnaryOp MulOp AddOp RelOp EqOp
 %type <int_val> Number
 
 %%
@@ -61,10 +67,127 @@ CompUnit
   }
   ;
 
+
+Decl
+  : ConstDecl {
+    $$ = $1;
+  }
+  | VarDecl {
+    $$ = $1;
+  }
+  ;
+
+ConstDecl 
+  : CONST BType ConstDef OptionalConstDef ';' {
+    auto ast = new DeclAST();
+    ast->is_const = true;
+    ast->btype = *unique_ptr<std::string>($2);
+    ast->defs.push_back(unique_ptr<BaseAST>($3));
+    DeclDefAST* cur = (DeclDefAST*)$4;
+    DeclDefAST* tmp;
+    while (cur != nullptr) {
+      tmp = cur->next;
+      ast->defs.push_back(unique_ptr<BaseAST>((BaseAST*)cur));
+      cur = tmp;
+    }
+    $$ = ast;
+  }
+  ;
+
+BType
+  : INT {
+    $$ = new std::string("int");
+  }
+  ;
+
+OptionalConstDef
+  : ',' ConstDef OptionalConstDef {
+    auto ast = $2;
+    ((DeclDefAST*)ast)->next = ((DeclDefAST*)$3);
+    $$ = ast;
+  }
+  | {
+    $$ = nullptr;
+  }
+  ;
+
+ConstDef
+  : IDENT '=' ConstInitVal {
+    auto ast = new DeclDefAST();
+    ast->is_const = true;
+    ast->ident = *unique_ptr<std::string>($1);
+    ast->init_val = unique_ptr<BaseAST>($3);
+    $$ = ast;
+  }
+  ;
+
+ConstInitVal
+  : ConstExp {
+    auto ast = new InitValAST();
+    ast->is_const = true;
+    ast->exp = unique_ptr<BaseAST>($1);
+    $$ = ast;
+  }
+  ;
+
+VarDecl
+  : BType VarDef OptionalVarDef ';' {
+    auto ast = new DeclAST();
+    ast->is_const = false;
+    ast->btype = *unique_ptr<std::string>($1);
+    ast->defs.push_back(unique_ptr<BaseAST>($2));
+    DeclDefAST* cur = (DeclDefAST*)$3;
+    DeclDefAST* tmp;
+    while (cur != nullptr) {
+      tmp = cur->next;
+      ast->defs.push_back(unique_ptr<BaseAST>((BaseAST*)cur));
+      cur = tmp;
+    }
+    $$ = ast;
+  }
+  ;
+
+OptionalVarDef
+  : ',' VarDef OptionalVarDef {
+    auto ast = $2;
+    ((DeclDefAST*)ast)->next = ((DeclDefAST*)$3);
+    $$ = ast;
+  }
+  | {
+    $$ = nullptr;
+  }
+  ;
+
+VarDef
+  : IDENT {
+    auto ast = new DeclDefAST();
+    ast->is_const = false;
+    ast->ident = *unique_ptr<std::string>($1);
+    ast->init_val = unique_ptr<BaseAST>(nullptr);
+    $$ = ast;
+  }
+  | IDENT '=' InitVal {
+    auto ast = new DeclDefAST();
+    ast->is_const = false;
+    ast->ident = *unique_ptr<std::string>($1);
+    ast->init_val = unique_ptr<BaseAST>($3);
+    $$ = ast;
+  }
+  ;
+
+InitVal
+  : Exp {
+    auto ast = new InitValAST();
+    ast->is_const = false;
+    ast->exp = unique_ptr<BaseAST>($1);
+    $$ = ast;
+  }
+  ;
+
 FuncDef
   : FuncType IDENT '(' ')' Block {
     auto ast = new FuncDefAST();
-    ast->func_type = unique_ptr<BaseAST>($1);
+    ast->func_type = *unique_ptr<string>($1);
     ast->ident = *unique_ptr<string>($2);
     ast->block = unique_ptr<BaseAST>($5);
     $$ = ast;
@@ -73,30 +196,84 @@ FuncDef
 
 FuncType
   : INT {
-    auto ast = new FuncTypeAST();
-    $$ = ast;
+    $$ = new std::string("int");
   }
   ;
 
 Block
-  : '{' Stmt '}' {
+  : '{' OptionalBlockItem '}' {
     auto ast = new BlockAST();
-    ast->stmt = unique_ptr<BaseAST>($2);
+    BlockItemAST* cur = (BlockItemAST*)($2);
+    BlockItemAST* tmp;
+    while (cur != nullptr) {
+      tmp = cur->next;
+      ast->items.push_back(unique_ptr<BaseAST>((BaseAST*)cur));
+      cur = tmp;
+    }
     $$ = ast;
   }
   ;
 
+OptionalBlockItem
+  : BlockItem OptionalBlockItem {
+    auto ast = $1;
+    ((BlockItemAST*)ast)->next = ((BlockItemAST*)$2);
+    $$ = ast;
+  }
+  | {
+    $$ = nullptr;
+  }
+  ;
+
+BlockItem
+  : Decl {
+    auto ast = new BlockItemAST();
+    ast->type = BLOCK_ITEM_AST_TYPE_0;
+    ast->item = unique_ptr<BaseAST>($1);
+    $$ = ast;
+  }
+  | Stmt {
+    auto ast = new BlockItemAST();
+    ast->type = BLOCK_ITEM_AST_TYPE_1;
+    ast->item = unique_ptr<BaseAST>($1);
+    $$ = ast;
+  }
+  ;
+
+LVal
+  : IDENT {
+    auto ast = new LValAST();
+    ast->ident = *unique_ptr<std::string>($1);
+    $$ = ast;
+  }
+
 Stmt
-  : RETURN Exp ';' {
+  : LVal '=' Exp ';' {
     auto ast = new StmtAST();
+    ast->type = STMT_AST_TYPE_0;
+    ast->lval = unique_ptr<BaseAST>($1);
+    ast->exp = unique_ptr<BaseAST>($3);
+    $$ = ast;
+  }
+  | RETURN Exp ';' {
+    auto ast = new StmtAST();
+    ast->type = STMT_AST_TYPE_1;
     ast->exp = unique_ptr<BaseAST>($2);
     $$ = ast;
+  }
+  ;
+
+ConstExp
+  : Exp {
+    $$ = $1;
+    ((ExpAST*)$$)->is_const = true;
   }
   ;
 
 Exp
   : LOrExp {
     auto ast = new ExpAST();
+    ast->is_const = false;
     ast->binary_exp = unique_ptr<BaseAST>($1);
     $$ = ast;
   }
@@ -238,6 +415,12 @@ PrimaryExp
     auto ast = new PrimaryExpAST();
     ast->type = PRIMARY_EXP_AST_TYPE_1;
     ast->number = $1;
+    $$ = ast;
+  }
+  | LVal {
+    auto ast = new PrimaryExpAST();
+    ast->type = PRIMARY_EXP_AST_TYPE_2;
+    ast->lval = unique_ptr<BaseAST>($1);
     $$ = ast;
   }
   ;
