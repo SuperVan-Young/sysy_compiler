@@ -109,6 +109,7 @@ int TargetCodeGenerator::dump_koopa_raw_function(koopa_raw_function_t func) {
 
 int TargetCodeGenerator::dump_koopa_raw_basic_block(
     koopa_raw_basic_block_t bb) {
+    out << bb->name + 1 << ":" << std::endl;
     int ret = dump_koopa_raw_slice(bb->insts);
     return ret;
 }
@@ -125,6 +126,10 @@ int TargetCodeGenerator::dump_koopa_raw_value(koopa_raw_value_t value) {
         return dump_koopa_raw_value_load(value);
     else if (tag == KOOPA_RVT_STORE)
         return dump_koopa_raw_value_store(value);
+    else if (tag == KOOPA_RVT_BRANCH)
+        return dump_koopa_raw_value_branch(value);
+    else if (tag == KOOPA_RVT_JUMP)
+        return dump_koopa_raw_value_jump(value);
     else {
         std::cerr << "Raw value type " << tag << " not implemented."
                   << std::endl;
@@ -295,5 +300,35 @@ int TargetCodeGenerator::dump_koopa_raw_value_return(koopa_raw_value_t value) {
     }
     dump_riscv_inst("ret");
     runtime_stack.top().is_returned = true;
+    return 0;
+}
+
+int TargetCodeGenerator::dump_koopa_raw_value_branch(koopa_raw_value_t value) {
+    std::string reg = "t3";
+    auto cond = value->kind.data.branch.cond;
+    if (cond->kind.tag == KOOPA_RVT_INTEGER) {
+        dump_riscv_inst("li", reg,
+                        std::to_string(cond->kind.data.integer.value));
+    } else if (cond->kind.tag == KOOPA_RVT_BINARY) {
+        auto offset = runtime_stack.top().get_info(cond).offset;
+        dump_lw(reg, offset);
+    } else if (cond->kind.tag == KOOPA_RVT_LOAD) {
+        auto offset = runtime_stack.top().get_info(cond).offset;
+        dump_lw(reg, offset);
+    }
+
+    auto true_bb_name = value->kind.data.branch.true_bb->name + 1;
+    auto false_bb_name = value->kind.data.branch.false_bb->name + 1;
+
+    dump_riscv_inst("bnez", reg, true_bb_name);
+    dump_riscv_inst("j", false_bb_name);
+
+    return 0;
+}
+
+int TargetCodeGenerator::dump_koopa_raw_value_jump(koopa_raw_value_t value) {
+    auto bb_name = value->kind.data.jump.target->name + 1;
+    dump_riscv_inst("j", bb_name);
+
     return 0;
 }

@@ -145,4 +145,6 @@ class TargetCodeGenerator {
     int dump_koopa_raw_value_load(koopa_raw_value_t value);
     int dump_koopa_raw_value_store(koopa_raw_value_t value);
     int dump_koopa_raw_value_return(koopa_raw_value_t value);
+    int dump_koopa_raw_value_branch(koopa_raw_value_t value);
+    int dump_koopa_raw_value_jump(koopa_raw_value_t value);
 };
