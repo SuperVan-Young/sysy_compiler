@@ -12,6 +12,7 @@ class SymbolTableEntry {
    public:
     bool is_const;
     int val;
+    int alias;
 };
 
 typedef std::map<std::string, SymbolTableEntry> symbol_table_block_t;
@@ -19,15 +20,17 @@ typedef std::map<std::string, SymbolTableEntry> symbol_table_block_t;
 class SymbolTable {
    private:
     std::vector<symbol_table_block_t> block_stack;
+    std::map<std::string, int> alias_cnt;
 
    public:
     bool exist_entry(std::string name);
     bool is_const_entry(std::string name);
     void insert_entry(std::string name, SymbolTableEntry entry);
-    void get_entry_val(std::string name, int &val);
+    int get_entry_val(std::string name);
     void write_entry_val(std::string name, int val);
     void push_block();
     void pop_block();
+    std::string get_aliased_name(std::string name);
 };
 
 typedef enum {

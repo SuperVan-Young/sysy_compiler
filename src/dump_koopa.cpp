@@ -15,7 +15,7 @@ void DeclAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
 }
 
 void DeclDefAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
-    assert(!irgen.symbol_table.exist_entry(ident));
+    // insert will automatically check duplicated entry
     SymbolTableEntry entry;
 
     if (is_const) {
@@ -26,18 +26,23 @@ void DeclDefAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
         irgen.symbol_table.insert_entry(ident, entry);
     } else {
         entry.is_const = false;
-        // allocate memory for var
-        out << "  @" << ident << " = alloc i32" << std::endl;
-        // add var entry into symbol table
+
+        // store initial value to memory, if there is
+        std::string store_val;
         if (init_val.get()) {
-            // store initial value to memory, if there is
             auto exp = dynamic_cast<InitValAST *>(init_val.get())->exp.get();
             exp->dump_koopa(irgen, out);
-            auto store_val = irgen.stack_val.top();
+            store_val = irgen.stack_val.top();
             irgen.stack_val.pop();
-            out << "  store " << store_val << ", @" << ident << std::endl;
         }
         irgen.symbol_table.insert_entry(ident, entry);
+
+        auto aliased_name = irgen.symbol_table.get_aliased_name(ident);
+        out << "  @" << aliased_name << " = alloc i32" << std::endl;
+        if (init_val.get()) {
+            out << "  store " << store_val << ", @" << aliased_name
+            << std::endl;
+        }
     }
 }
 
@@ -106,7 +111,8 @@ void StmtAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
         // lval shouldn't be const
         auto lval_name = dynamic_cast<LValAST *>(lval.get())->ident;
         assert(!irgen.symbol_table.is_const_entry(lval_name));
-        out << "  store " << r_val << ", @" << lval_name << std::endl;
+        auto aliased_lval_name = irgen.symbol_table.get_aliased_name(lval_name);
+        out << "  store " << r_val << ", @" << aliased_lval_name << std::endl;
     } else if (type == STMT_AST_TYPE_1) {
         // return
         if (exp.get() != nullptr) {
@@ -316,13 +322,13 @@ void LValAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
     assert(irgen.symbol_table.exist_entry(ident));
 
     if (irgen.symbol_table.is_const_entry(ident)) {
-        int val;
-        irgen.symbol_table.get_entry_val(ident, val);
+        int val = irgen.symbol_table.get_entry_val(ident);
         irgen.stack_val.push(std::to_string(val));
     } else {
         auto val = irgen.new_val();
+        auto aliased_name = irgen.symbol_table.get_aliased_name(ident);
         out << "  " << val << " = load "
-            << "@" << ident << std::endl;
+            << "@" << aliased_name << std::endl;
         irgen.stack_val.push(val);
     }
 }
