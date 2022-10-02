@@ -7,6 +7,8 @@ int TargetCodeGenerator::dump_riscv() {
     return ret;
 }
 
+// dump riscv inst
+
 void TargetCodeGenerator::dump_riscv_inst(std::string inst,
                                           std::string reg_0 = "",
                                           std::string reg_1 = "",
@@ -50,6 +52,8 @@ void TargetCodeGenerator::dump_sw(std::string reg, int offset) {
         dump_riscv_inst("sw", reg, "0(t6)");
     }
 }
+
+// dump koopa data structure
 
 int TargetCodeGenerator::dump_koopa_raw_slice(koopa_raw_slice_t slice) {
     for (size_t i = 0; i < slice.len; i++) {
@@ -115,6 +119,12 @@ int TargetCodeGenerator::dump_koopa_raw_value(koopa_raw_value_t value) {
         return dump_koopa_raw_value_binary(value);
     else if (tag == KOOPA_RVT_RETURN)
         return dump_koopa_raw_value_return(value);
+    else if (tag == KOOPA_RVT_ALLOC)
+        return 0;  // needless to dump
+    else if (tag == KOOPA_RVT_LOAD)
+        return dump_koopa_raw_value_load(value);
+    else if (tag == KOOPA_RVT_STORE)
+        return dump_koopa_raw_value_store(value);
     else {
         std::cerr << "Raw value type " << tag << " not implemented."
                   << std::endl;
@@ -138,6 +148,13 @@ int TargetCodeGenerator::dump_koopa_raw_value_binary(koopa_raw_value_t value) {
         auto lhs_int = lhs_val->kind.data.integer.value;
         dump_riscv_inst("li", "t1", std::to_string(lhs_int));
         lhs = "t1";
+    } else if (lhs_val->kind.tag == KOOPA_RVT_LOAD) {
+        auto offset = runtime_stack.top().get_info(lhs_val).offset;
+        dump_lw("t1", offset);
+        lhs = "t1";
+    } else {
+        std::cerr << "BINARY val type: " << lhs_val->kind.tag << std::endl;
+        assert(false);
     }
 
     // find rhs operand
@@ -153,6 +170,13 @@ int TargetCodeGenerator::dump_koopa_raw_value_binary(koopa_raw_value_t value) {
         auto rhs_int = rhs_val->kind.data.integer.value;
         dump_riscv_inst("li", "t2", std::to_string(rhs_int));
         rhs = "t2";
+    } else if (rhs_val->kind.tag == KOOPA_RVT_LOAD) {
+        auto offset = runtime_stack.top().get_info(rhs_val).offset;
+        dump_lw("t2", offset);
+        rhs = "t2";
+    } else {
+        std::cerr << "BINARY val type: " << rhs_val->kind.tag << std::endl;
+        assert(false);
     }
 
     // given op type, dump the value
@@ -215,6 +239,32 @@ int TargetCodeGenerator::dump_koopa_raw_value_binary(koopa_raw_value_t value) {
     return 0;
 }
 
+int TargetCodeGenerator::dump_koopa_raw_value_load(koopa_raw_value_t value) {
+    // store the return value back on stack, kind of stupid...
+    auto src = value->kind.data.load.src;
+    auto src_offset = runtime_stack.top().get_info(src).offset;
+    dump_lw("t0", src_offset);
+    auto dst_offset = runtime_stack.top().get_info(value).offset;
+    dump_sw("t0", dst_offset);
+    return 0;
+}
+
+int TargetCodeGenerator::dump_koopa_raw_value_store(koopa_raw_value_t value) {
+    // load value from stack, and put back to dest ...
+    auto src = value->kind.data.store.value;
+    if (src->kind.tag == KOOPA_RVT_INTEGER) {
+        int src_val = src->kind.data.integer.value;
+        dump_riscv_inst("li", "t0", std::to_string(src_val));
+    } else {
+        std::cerr << "STORE src type: " << src->kind.tag << std::endl;
+        assert(false);
+    }
+    auto dst = value->kind.data.store.dest;
+    auto dst_offset = runtime_stack.top().get_info(dst).offset;
+    dump_sw("t0", dst_offset);
+    return 0;
+}
+
 int TargetCodeGenerator::dump_koopa_raw_value_return(koopa_raw_value_t value) {
     // move operand to a0
     auto ret_val = value->kind.data.ret.value;
@@ -224,7 +274,23 @@ int TargetCodeGenerator::dump_koopa_raw_value_return(koopa_raw_value_t value) {
     } else if (ret_val->kind.tag == KOOPA_RVT_INTEGER) {
         auto ret = std::to_string(ret_val->kind.data.integer.value);
         dump_riscv_inst("li", "a0", ret);
+    } else if (ret_val->kind.tag == KOOPA_RVT_LOAD) {
+        auto offset = runtime_stack.top().get_info(ret_val).offset;
+        dump_lw("a0", offset);
+    } else {
+        std::cerr << "RETURN val type: " << ret_val->kind.tag << std::endl;
+        assert(false);
+    }
+
+    // epilogue
+    auto frame_length = runtime_stack.top().get_length();
+    if (frame_length <= 2048)
+        dump_riscv_inst("addi", "sp", "sp", std::to_string(frame_length));
+    else {
+        dump_riscv_inst("li", "t0", std::to_string(frame_length));
+        dump_riscv_inst("add", "sp", "sp", "t0");
     }
     dump_riscv_inst("ret");
+    runtime_stack.top().is_returned = true;
     return 0;
 }

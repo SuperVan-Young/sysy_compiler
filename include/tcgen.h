@@ -66,7 +66,7 @@ class StackInfo {
 class StackFrame {
    private:
     std::map<koopa_raw_value_t, StackInfo> entries;
-    int length;
+    int length = 0;
 
    public:
     bool is_returned = false;
@@ -78,7 +78,7 @@ class StackFrame {
             auto val_slice = bb->insts;
             assert(val_slice.kind == KOOPA_RSIK_VALUE);
             for (size_t j = 0; j < val_slice.len; j++) {
-                auto val = (koopa_raw_value_t)val_slice.buffer[i];
+                auto val = (koopa_raw_value_t)val_slice.buffer[j];
                 StackInfo stack_info;
                 // check val type
                 if (val->ty->tag == KOOPA_RTT_UNIT) continue;
@@ -93,7 +93,15 @@ class StackFrame {
 
     StackInfo get_info(koopa_raw_value_t val) {
         auto it = entries.find(val);
-        assert(it != entries.end());
+        if (it == entries.end()) {
+            for (auto &it: entries)
+                std:: cerr << it.first << std::endl;
+            std::cerr << "val address: " << val << std::endl;
+            std::cerr << "val type: " << val->kind.tag << std::endl;
+            std::cerr << "val return type: " << val->ty->tag << std::endl;
+            std::cerr << "No info on stack: " << val->name << std::endl;
+            assert(false);
+        }
         return it->second;
     }
 
@@ -103,12 +111,12 @@ class StackFrame {
 class TargetCodeGenerator {
    public:
     koopa_raw_program_t raw;
-    std::fstream out;
+    std::ostream &out;
 
     RegisterFile regfiles;
     std::stack<StackFrame> runtime_stack;
 
-    TargetCodeGenerator(const char *koopa_file, std::ostream &out) {
+    TargetCodeGenerator(const char *koopa_file, std::ostream &out) : out{out} {
         koopa_program_t program;
         koopa_error_code_t ret = koopa_parse_from_file(koopa_file, &program);
         assert(ret == KOOPA_EC_SUCCESS);
@@ -134,5 +142,7 @@ class TargetCodeGenerator {
     int dump_koopa_raw_value(koopa_raw_value_t value);
 
     int dump_koopa_raw_value_binary(koopa_raw_value_t value);
+    int dump_koopa_raw_value_load(koopa_raw_value_t value);
+    int dump_koopa_raw_value_store(koopa_raw_value_t value);
     int dump_koopa_raw_value_return(koopa_raw_value_t value);
 };
