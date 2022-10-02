@@ -77,10 +77,10 @@ void BlockAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
 
     for (auto &item : items) {
         item->dump_koopa(irgen, out);
-        // needless to care about if-else / while here
-        // only take care of early return, raised by return stmt
-        if (irgen.control_flow.check_ending_status() ==
-            BASIC_BLOCK_ENDING_STATUS_RETURN) {
+        // take care of early return or unreachable, raised by return stmt
+        auto status = irgen.control_flow.check_ending_status();
+        if (status == BASIC_BLOCK_ENDING_STATUS_RETURN ||
+            status == BASIC_BLOCK_ENDING_STATUS_UNREACHABLE) {
             break;
         }
     }
@@ -171,15 +171,29 @@ void StmtAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
             dump_koopa_if_stmt(else_stmt.get(), else_block_name, end_block_name,
                                irgen, out);
 
+            irgen.control_flow.cur_block = end_block_name;
+            // Optimization: two return stmt makes end stmt unreachable
+            auto then_status =
+                irgen.control_flow.check_ending_status(then_block_name);
+            auto else_status =
+                irgen.control_flow.check_ending_status(else_block_name);
+            if (then_status == BASIC_BLOCK_ENDING_STATUS_RETURN &&
+                else_status == BASIC_BLOCK_ENDING_STATUS_RETURN) {
+                irgen.control_flow.modify_ending_status(
+                    BASIC_BLOCK_ENDING_STATUS_UNREACHABLE);
+            } else {
+                out << end_block_name << ":" << std::endl;
+            }
+
         } else {
             out << "  br " << cond << ", " << then_block_name << ", "
                 << end_block_name << std::endl;
             dump_koopa_if_stmt(then_stmt.get(), then_block_name, end_block_name,
                                irgen, out);
+            irgen.control_flow.cur_block = end_block_name;
+            out << end_block_name << ":" << std::endl;
         }
 
-        irgen.control_flow.cur_block = end_block_name;
-        out << end_block_name << ":" << std::endl;
     } else {
         assert(false);
     }

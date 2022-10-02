@@ -4,8 +4,10 @@ void ControlFlow::insert_info(std::string name, BasicBlockInfo info) {
     cfg.insert(std::make_pair(name, info));
 }
 
-basic_block_ending_status_t ControlFlow::check_ending_status() {
-    auto &info = cfg[cur_block];
+basic_block_ending_status_t ControlFlow::check_ending_status(std::string name) {
+    if (name == "")
+        name = cur_block;
+    auto &info = cfg[name];
     return info.ending;
 }
 

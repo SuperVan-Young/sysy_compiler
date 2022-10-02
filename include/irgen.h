@@ -38,6 +38,7 @@ typedef enum {
     BASIC_BLOCK_ENDING_STATUS_BRANCH,
     BASIC_BLOCK_ENDING_STATUS_RETURN,
     BASIC_BLOCK_ENDING_STATUS_JUMP,
+    BASIC_BLOCK_ENDING_STATUS_UNREACHABLE,
 } basic_block_ending_status_t;
 
 class BasicBlockInfo {
@@ -54,7 +55,7 @@ class ControlFlow {
     std::string cur_block = "";
 
     void insert_info(std::string name, BasicBlockInfo info);
-    basic_block_ending_status_t check_ending_status();
+    basic_block_ending_status_t check_ending_status(std::string name = "");
     void modify_ending_status(basic_block_ending_status_t status);
 };
 
