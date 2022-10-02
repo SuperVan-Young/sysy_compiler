@@ -20,6 +20,7 @@ bool BinaryExpAST::calc_val(IRGenerator &irgen, int &result,
         ret &&
         dynamic_cast<CalcAST *>(r_exp.get())->calc_val(irgen, rhs, calc_const);
 
+    // calc_val doesn't dump inst, needless to short circuit
     if (op == "+") {
         result = lhs + rhs;
     } else if (op == "-") {

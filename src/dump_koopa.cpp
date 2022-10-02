@@ -205,10 +205,29 @@ void ExpAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
 }
 
 void BinaryExpAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
-    r_exp->dump_koopa(irgen, out);  // higher priority!
     l_exp->dump_koopa(irgen, out);
-    auto l_val = irgen.stack_val.top();  // order!
+    auto l_val = irgen.stack_val.top();
     irgen.stack_val.pop();
+
+    // Optimization: short circult r_exp
+    if (!is_symbol(l_val)) {
+        auto lhs = std::stoi(l_val);
+        if (lhs == 0) {
+            if (op == "&&") {
+                irgen.stack_val.push("0");
+                return;
+            }
+        } else {
+            if (op == "||") {
+                irgen.stack_val.push("1");
+                return;
+            }
+        }
+    }
+    // shouldn't shortcut l_exp given a const r_exp
+    // since l_exp could have side effect
+
+    r_exp->dump_koopa(irgen, out);
     auto r_val = irgen.stack_val.top();
     irgen.stack_val.pop();
 
