@@ -139,11 +139,6 @@ class ExpAST : public CalcAST {
                   bool calc_const) const override;
 };
 
-typedef enum {
-    BINARY_EXP_AST_TYPE_R = 0,  // r_exp
-    BINARY_EXP_AST_TYPE_LR      // l_exp op r_exp
-} binary_exp_ast_type;
-
 // MulExp        ::= UnaryExp | MulExp ("*" | "/" | "%") UnaryExp;
 // AddExp        ::= MulExp | AddExp ("+" | "-") MulExp;
 // RelExp        ::= AddExp | RelExp ("<" | ">" | "<=" | ">=") AddExp;
@@ -152,7 +147,6 @@ typedef enum {
 // LOrExp        ::= LAndExp | LOrExp "||" LAndExp;
 class BinaryExpAST : public CalcAST {
    public:
-    binary_exp_ast_type type;
     std::string op;
     std::unique_ptr<BaseAST> l_exp;
     std::unique_ptr<BaseAST> r_exp;
@@ -162,17 +156,10 @@ class BinaryExpAST : public CalcAST {
                   bool calc_const) const override;
 };
 
-typedef enum {
-    UNARY_EXP_AST_TYPE_PRIMARY,  // primary_exp
-    UNARY_EXP_AST_TYPE_UNARY,    // unary_op unary_exp
-} unary_exp_ast_type;
-
 // UnaryExp      ::= PrimaryExp | UnaryOp UnaryExp;
 class UnaryExpAST : public CalcAST {
    public:
-    unary_exp_ast_type type;
     std::string op;
-    std::unique_ptr<BaseAST> primary_exp;
     std::unique_ptr<BaseAST> unary_exp;
 
     void dump_koopa(IRGenerator &irgen, std::ostream &out) const override;
@@ -181,7 +168,6 @@ class UnaryExpAST : public CalcAST {
 };
 
 typedef enum {
-    PRIMARY_EXP_AST_TYPE_EXP = 0,  // exp
     PRIMARY_EXP_AST_TYPE_NUMBER,   // number
     PRIMARY_EXP_AST_TYPE_LVAL,     // lval
 } primary_exp_ast_type;
@@ -189,7 +175,6 @@ typedef enum {
 class PrimaryExpAST : public CalcAST {
    public:
     primary_exp_ast_type type;
-    std::unique_ptr<BaseAST> exp;
     int number;
     std::unique_ptr<BaseAST> lval;
 

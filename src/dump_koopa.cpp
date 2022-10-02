@@ -205,166 +205,145 @@ void ExpAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
 }
 
 void BinaryExpAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
-    if (type == BINARY_EXP_AST_TYPE_R) {
-        r_exp->dump_koopa(irgen, out);
-        return;  // needless to operate on stack
-    } else if (type == BINARY_EXP_AST_TYPE_LR) {
-        // dump &  fetch sub exp values
-        r_exp->dump_koopa(irgen, out);  // higher priority!
-        l_exp->dump_koopa(irgen, out);
-        auto l_val = irgen.stack_val.top();  // order!
-        irgen.stack_val.pop();
-        auto r_val = irgen.stack_val.top();
-        irgen.stack_val.pop();
+    r_exp->dump_koopa(irgen, out);  // higher priority!
+    l_exp->dump_koopa(irgen, out);
+    auto l_val = irgen.stack_val.top();  // order!
+    irgen.stack_val.pop();
+    auto r_val = irgen.stack_val.top();
+    irgen.stack_val.pop();
 
-        // Optimization: calculate directly if l_val and r_val are const
-        if (!is_symbol(l_val) && !is_symbol(r_val)) {
-            int lhs = std::stoi(l_val);
-            int rhs = std::stoi(r_val);
-            int ret;
-            if (op == "+")
-                ret = lhs + rhs;
-            else if (op == "-")
-                ret = lhs - rhs;
-            else if (op == "*")
-                ret = lhs * rhs;
-            else if (op == "/")
-                ret = lhs / rhs;
-            else if (op == "%")
-                ret = lhs % rhs;
-            else if (op == "<")
-                ret = lhs < rhs;
-            else if (op == ">")
-                ret = lhs > rhs;
-            else if (op == "<=")
-                ret = lhs <= rhs;
-            else if (op == ">=")
-                ret = lhs >= rhs;
-            else if (op == "==")
-                ret = lhs == rhs;
-            else if (op == "!=")
-                ret = lhs != rhs;
-            else if (op == "&&")
-                ret = lhs && rhs;
-            else if (op == "||")
-                ret = lhs || rhs;
-            else {
-                std::cerr << "Invalid op: " << op << std::endl;
-                assert(false);
-            }
-            irgen.stack_val.push(std::to_string(ret));
-            return;
-        }
-
-        // dump exp w.r.t. op
-        if (op == "&&" || op == "||") {
-            // convert both value into logical values
-            auto ll_val = irgen.new_val();
-            auto lr_val = irgen.new_val();
-            out << "  " << ll_val << " = ne " << l_val << ", 0" << std::endl;
-            out << "  " << lr_val << " = ne " << r_val << ", 0" << std::endl;
-            l_val = ll_val;
-            r_val = lr_val;
-        }
-        auto exp_val = irgen.new_val();
-        out << "  " << exp_val << " = ";
+    // Optimization: calculate directly if l_val and r_val are const
+    if (!is_symbol(l_val) && !is_symbol(r_val)) {
+        int lhs = std::stoi(l_val);
+        int rhs = std::stoi(r_val);
+        int ret;
         if (op == "+")
-            out << "add ";
-        else if (op == "-") {
-            out << "sub ";
-        } else if (op == "*") {
-            out << "mul ";
-        } else if (op == "/") {
-            out << "div ";
-        } else if (op == "%") {
-            out << "mod ";
-        } else if (op == "<") {
-            out << "lt ";
-        } else if (op == ">") {
-            out << "gt ";
-        } else if (op == "<=") {
-            out << "le ";
-        } else if (op == ">=") {
-            out << "ge ";
-        } else if (op == "==") {
-            out << "eq ";
-        } else if (op == "!=") {
-            out << "ne ";
-        } else if (op == "&&") {
-            out << "and ";
-        } else if (op == "||") {
-            out << "or ";
-        } else {
+            ret = lhs + rhs;
+        else if (op == "-")
+            ret = lhs - rhs;
+        else if (op == "*")
+            ret = lhs * rhs;
+        else if (op == "/")
+            ret = lhs / rhs;
+        else if (op == "%")
+            ret = lhs % rhs;
+        else if (op == "<")
+            ret = lhs < rhs;
+        else if (op == ">")
+            ret = lhs > rhs;
+        else if (op == "<=")
+            ret = lhs <= rhs;
+        else if (op == ">=")
+            ret = lhs >= rhs;
+        else if (op == "==")
+            ret = lhs == rhs;
+        else if (op == "!=")
+            ret = lhs != rhs;
+        else if (op == "&&")
+            ret = lhs && rhs;
+        else if (op == "||")
+            ret = lhs || rhs;
+        else {
             std::cerr << "Invalid op: " << op << std::endl;
             assert(false);
         }
-        out << l_val << ", " << r_val << std::endl;
-        irgen.stack_val.push(exp_val);
+        irgen.stack_val.push(std::to_string(ret));
+        return;
+    }
 
+    // dump exp w.r.t. op
+    if (op == "&&" || op == "||") {
+        // convert both value into logical values
+        auto ll_val = irgen.new_val();
+        auto lr_val = irgen.new_val();
+        out << "  " << ll_val << " = ne " << l_val << ", 0" << std::endl;
+        out << "  " << lr_val << " = ne " << r_val << ", 0" << std::endl;
+        l_val = ll_val;
+        r_val = lr_val;
+    }
+    auto exp_val = irgen.new_val();
+    out << "  " << exp_val << " = ";
+    if (op == "+")
+        out << "add ";
+    else if (op == "-") {
+        out << "sub ";
+    } else if (op == "*") {
+        out << "mul ";
+    } else if (op == "/") {
+        out << "div ";
+    } else if (op == "%") {
+        out << "mod ";
+    } else if (op == "<") {
+        out << "lt ";
+    } else if (op == ">") {
+        out << "gt ";
+    } else if (op == "<=") {
+        out << "le ";
+    } else if (op == ">=") {
+        out << "ge ";
+    } else if (op == "==") {
+        out << "eq ";
+    } else if (op == "!=") {
+        out << "ne ";
+    } else if (op == "&&") {
+        out << "and ";
+    } else if (op == "||") {
+        out << "or ";
     } else {
+        std::cerr << "Invalid op: " << op << std::endl;
         assert(false);
     }
+    out << l_val << ", " << r_val << std::endl;
+    irgen.stack_val.push(exp_val);
 }
 
 void UnaryExpAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
-    if (type == UNARY_EXP_AST_TYPE_PRIMARY) {
-        // primary_exp
-        primary_exp->dump_koopa(irgen, out);
-        return;  // needless to operate on stack
-    } else if (type == UNARY_EXP_AST_TYPE_UNARY) {
-        // unary_op unary_exp
-        unary_exp->dump_koopa(irgen, out);
+    // unary_op unary_exp
+    unary_exp->dump_koopa(irgen, out);
 
-        auto sub_val = irgen.stack_val.top();  // fetch sub expression's token
-        irgen.stack_val.pop();
+    auto sub_val = irgen.stack_val.top();  // fetch sub expression's token
+    irgen.stack_val.pop();
 
-        // Optimization: calculate directly if sub_val is const
-        if (!is_symbol(sub_val)) {
-            int val = std::stoi(sub_val);
-            int ret;
-            if (op == "!")
-                ret = !val;
-            else if (op == "-")
-                ret = -val;
-            else if (op == "+")
-                ret = val;
-            else {
-                std::cerr << "Invalid op: " << op << std::endl;
-                assert(false);
-            }
-            irgen.stack_val.push(std::to_string(ret));
-            return;
-        }
-
-        // dump exp w.r.t op
-        std::string exp_val;
-        if (op == "!") {
-            exp_val = irgen.new_val();
-            out << "  " << exp_val << " = ";
-            out << "eq " << sub_val << ", 0" << std::endl;
-        } else if (op == "-") {
-            exp_val = irgen.new_val();
-            out << "  " << exp_val << " = ";
-            out << "sub 0, " << sub_val << std::endl;
-        } else if (op == "+") {
-            exp_val = sub_val;  // ignore
-        } else {
+    // Optimization: calculate directly if sub_val is const
+    if (!is_symbol(sub_val)) {
+        int val = std::stoi(sub_val);
+        int ret;
+        if (op == "!")
+            ret = !val;
+        else if (op == "-")
+            ret = -val;
+        else if (op == "+")
+            ret = val;
+        else {
             std::cerr << "Invalid op: " << op << std::endl;
-            assert(false);  // Not Implemented
+            assert(false);
         }
-
-        irgen.stack_val.push(exp_val);  // push exp token to stack
-    } else {
-        assert(false);  // invalid type
+        irgen.stack_val.push(std::to_string(ret));
+        return;
     }
+
+    // dump exp w.r.t op
+    std::string exp_val;
+    if (op == "!") {
+        exp_val = irgen.new_val();
+        out << "  " << exp_val << " = ";
+        out << "eq " << sub_val << ", 0" << std::endl;
+    } else if (op == "-") {
+        exp_val = irgen.new_val();
+        out << "  " << exp_val << " = ";
+        out << "sub 0, " << sub_val << std::endl;
+    } else if (op == "+") {
+        exp_val = sub_val;  // ignore
+    } else {
+        std::cerr << "Invalid op: " << op << std::endl;
+        assert(false);  // Not Implemented
+    }
+
+    irgen.stack_val.push(exp_val);  // push exp token to stack
 }
 
 void PrimaryExpAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
-    if (type == PRIMARY_EXP_AST_TYPE_EXP) {
-        // exp
-        exp->dump_koopa(irgen, out);
-        return;  // needless to operate on stack
-    } else if (type == PRIMARY_EXP_AST_TYPE_NUMBER) {
+    if (type == PRIMARY_EXP_AST_TYPE_NUMBER) {
         // number
         irgen.stack_val.push(std::to_string(number));
         return;
