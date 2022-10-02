@@ -91,7 +91,6 @@ class BlockItemAST : public BaseAST {
     BlockItemAST *next;
 
     void dump_koopa(IRGenerator &irgen, std::ostream &out) const override;
-    bool is_return_stmt();
 };
 
 typedef enum {

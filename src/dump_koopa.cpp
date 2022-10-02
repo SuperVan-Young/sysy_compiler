@@ -45,40 +45,49 @@ void FuncDefAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
     out << "fun @" << ident << "(): "
         << "i32"
         << " {" << std::endl;
+
+    // prepare the first block for control flow
+    auto block_info = BasicBlockInfo();
+    auto block_name = irgen.new_block();
+    irgen.control_flow.insert_info(block_name, block_info);
+    out << block_name << ":" << std::endl;
+
     block->dump_koopa(irgen, out);
+
+    // check if basic block has returned, and give up control flow
+    if (irgen.control_flow.check_ending_status() !=
+        BASIC_BLOCK_ENDING_STATUS_RETURN) {
+        irgen.control_flow.modify_ending_status(
+            BASIC_BLOCK_ENDING_STATUS_RETURN);
+        out << "  ret 114514" << std::endl;  // return random const
+    }
+    irgen.control_flow.cur_block = "";
+    irgen.control_flow.to_next_block = false;
+
     out << "}" << std::endl;
 }
 
 void BlockAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
-    auto block_name = irgen.new_block();
-    out << block_name << ":" << std::endl;
-
     irgen.symbol_table.push_block();
+    if (irgen.control_flow.to_next_block) {
+        irgen.control_flow.switch_control();
+        out << irgen.control_flow.cur_block << ":" << std::endl;
+    }
 
-    bool is_returned = false;
     for (auto &item : items) {
         item->dump_koopa(irgen, out);
-        if (dynamic_cast<BlockItemAST *>(item.get())->is_return_stmt()) {
-            // the following stmts are useless
-            is_returned = true;
+        // needless to care about if-else / while here
+        // only take care of early return, raised by return stmt
+        if (irgen.control_flow.check_ending_status() ==
+            BASIC_BLOCK_ENDING_STATUS_RETURN) {
             break;
         }
     }
-    if (!is_returned) {
-        // add a random return if not exist
-        out << "  ret 114514" << std::endl;
-    }
 
     irgen.symbol_table.pop_block();
-}
-
-bool BlockItemAST::is_return_stmt() {
-    if (type == BLOCK_ITEM_AST_TYPE_1) {
-        if (dynamic_cast<StmtAST *>(item.get())->type == STMT_AST_TYPE_1) {
-            return true;
-        }
-    }
-    return false;
+    // block doesn't change control flow on itself
+    // if-else / while is handled in Stmt
+    // Fix-up return is handled in func
 }
 
 void BlockItemAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
@@ -106,6 +115,8 @@ void StmtAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
         } else {
             out << "  ret 114514" << std::endl;  // return random const
         }
+        irgen.control_flow.modify_ending_status(
+            BASIC_BLOCK_ENDING_STATUS_RETURN);  // block should return
     } else if (type == STMT_AST_TYPE_2) {
         // exp
         if (exp.get() != nullptr) {

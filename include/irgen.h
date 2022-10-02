@@ -51,8 +51,10 @@ class ControlFlow {
     std::string cur_block = "";
     bool to_next_block = false;
 
-    void get_info(std::string name, BasicBlockInfo &info);
     void insert_info(std::string name, BasicBlockInfo info);
+    void switch_control();
+    basic_block_ending_status_t check_ending_status();
+    void modify_ending_status(basic_block_ending_status_t status);
 };
 
 // Save information when generating koopa IR
@@ -68,6 +70,7 @@ class IRGenerator {
     }
     std::stack<std::string> stack_val;  // parse exp
     SymbolTable symbol_table;
+    ControlFlow control_flow;
 
     std::string new_val() {
         auto val = cnt_val++;
