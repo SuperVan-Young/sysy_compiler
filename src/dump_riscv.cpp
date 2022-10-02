@@ -29,6 +29,28 @@ void TargetCodeGenerator::dump_riscv_inst(std::string inst,
     }
 }
 
+void TargetCodeGenerator::dump_lw(std::string reg, int offset) {
+    if (offset <= 2047 && offset >= -2048) {
+        dump_riscv_inst("lw", reg, std::to_string(offset) + "(sp)");
+    } else {
+        // take an empty register for offset
+        // TODO: before considering register allocation, we use t6
+        dump_riscv_inst("li", "t6", std::to_string(offset));
+        dump_riscv_inst("lw", reg, "0(t6)");
+    }
+}
+
+void TargetCodeGenerator::dump_sw(std::string reg, int offset) {
+    if (offset <= 2047 && offset >= -2048) {
+        dump_riscv_inst("sw", reg, std::to_string(offset) + "(sp)");
+    } else {
+        // take an empty register for offset
+        // TODO: before considering register allocation, we use t6
+        dump_riscv_inst("li", "t6", std::to_string(offset));
+        dump_riscv_inst("sw", reg, "0(t6)");
+    }
+}
+
 int TargetCodeGenerator::dump_koopa_raw_slice(koopa_raw_slice_t slice) {
     for (size_t i = 0; i < slice.len; i++) {
         const void *p = slice.buffer[i];
@@ -37,11 +59,11 @@ int TargetCodeGenerator::dump_koopa_raw_slice(koopa_raw_slice_t slice) {
             ret = dump_koopa_raw_function((koopa_raw_function_t)p);
         else if (slice.kind == KOOPA_RSIK_VALUE)
             // we should only reference inst array.
-            ret = dump_koopa_raw_value_inst((koopa_raw_value_t)p);
+            ret = dump_koopa_raw_value((koopa_raw_value_t)p);
         else if (slice.kind == KOOPA_RSIK_BASIC_BLOCK)
             ret = dump_koopa_raw_basic_block((koopa_raw_basic_block_t)p);
         else
-            ret = -1;  // TODO: add other dumpers
+            ret = -1;
         assert(!ret);
     }
     return 0;
@@ -65,7 +87,6 @@ int TargetCodeGenerator::dump_koopa_raw_function(koopa_raw_function_t func) {
     int ret = dump_koopa_raw_slice(func->bbs);
 
     // for function without a return inst, we add a default one.
-    // TODO: return inst should add this too.
     if (!runtime_stack.top().is_returned) {
         // epilogue insts
         if (frame_length <= 2048)
@@ -88,144 +109,122 @@ int TargetCodeGenerator::dump_koopa_raw_basic_block(
     return ret;
 }
 
-int TargetCodeGenerator::dump_koopa_raw_value_inst(koopa_raw_value_t value) {
+int TargetCodeGenerator::dump_koopa_raw_value(koopa_raw_value_t value) {
     auto tag = value->kind.tag;
-    if (tag == KOOPA_RVT_BINARY) {
-        auto op = value->kind.data.binary.op;
-        std::string lhs, rhs;
-        bool recycle_lhs = false, recycle_rhs = false;
-
-        // find lhs operand, assign a register if necessary
-        auto lhs_val = value->kind.data.binary.lhs;
-        if (lhs_val->kind.tag == KOOPA_RVT_BINARY) {
-            lhs = find_tmp_reg(lhs_val);
-            assert(lhs != "");
-        } else if (lhs_val->kind.tag == KOOPA_RVT_INTEGER) {
-            if (lhs_val->kind.data.integer.value == 0) {
-                lhs = "x0";
-            } else {
-                // new reg, dump inst, write back
-                lhs = new_tmp_reg(lhs_val);
-                assert(lhs != "");
-                dump_riscv_inst(
-                    "li", lhs,
-                    std::to_string(lhs_val->kind.data.integer.value));
-                write_tmp_reg(lhs_val, lhs);
-                recycle_lhs = true;
-            }
-        }
-
-        // find rhs operand
-        // imm format is available for andi/ori/xori/addi
-        auto rhs_val = value->kind.data.binary.rhs;
-        bool rhs_imm;
-        if (rhs_val->kind.tag == KOOPA_RVT_BINARY) {
-            rhs = find_tmp_reg(rhs_val);
-            assert(rhs != "");
-            rhs_imm = false;
-        } else if (rhs_val->kind.tag == KOOPA_RVT_INTEGER) {
-            if (op == KOOPA_RBO_AND || op == KOOPA_RBO_OR ||
-                op == KOOPA_RBO_XOR || op == KOOPA_RBO_ADD) {
-                rhs = std::to_string(rhs_val->kind.data.integer.value);
-                rhs_imm = true;
-            } else {
-                if (rhs_val->kind.data.integer.value == 0) {
-                    rhs = "x0";
-                    rhs_imm = false;
-                } else {
-                    // new reg, dump inst, write back
-                    rhs = new_tmp_reg(rhs_val);
-                    assert(rhs != "");
-                    dump_riscv_inst(
-                        "li", rhs,
-                        std::to_string(rhs_val->kind.data.integer.value));
-                    write_tmp_reg(rhs_val, rhs);
-                    rhs_imm = false;
-                    recycle_rhs = true;
-                }
-            }
-        }
-
-        // given op type, dump the value
-        auto reg = new_tmp_reg(value);
-        assert(reg != "");
-
-        if (op == KOOPA_RBO_NOT_EQ) {
-            dump_riscv_inst("xor", reg, lhs, rhs);
-            dump_riscv_inst("snez", reg, reg);
-        } else if (op == KOOPA_RBO_EQ) {
-            dump_riscv_inst("xor", reg, lhs, rhs);
-            dump_riscv_inst("seqz", reg, reg);
-        } else if (op == KOOPA_RBO_GT) {
-            dump_riscv_inst("sgt", reg, lhs, rhs);
-        } else if (op == KOOPA_RBO_LT) {
-            dump_riscv_inst("slt", reg, lhs, rhs);
-        } else if (op == KOOPA_RBO_GE) {  // not less than
-            dump_riscv_inst("slt", reg, lhs, rhs);
-            dump_riscv_inst("xori", reg, reg, "1");
-        } else if (op == KOOPA_RBO_LE) {  // not greater than
-            dump_riscv_inst("sgt", reg, lhs, rhs);
-            dump_riscv_inst("xori", reg, reg, "1");
-        } else if (op == KOOPA_RBO_ADD) {
-            std::string inst = "add";
-            if (rhs_imm) inst += "i";
-            dump_riscv_inst(inst, reg, lhs, rhs);
-        } else if (op == KOOPA_RBO_SUB) {
-            dump_riscv_inst("sub", reg, lhs, rhs);
-        } else if (op == KOOPA_RBO_MUL) {
-            dump_riscv_inst("mul", reg, lhs, rhs);
-        } else if (op == KOOPA_RBO_DIV) {
-            dump_riscv_inst("div", reg, lhs, rhs);
-        } else if (op == KOOPA_RBO_MOD) {
-            dump_riscv_inst("rem", reg, lhs, rhs);
-        } else if (op == KOOPA_RBO_AND) {
-            std::string inst = "and";
-            if (rhs_imm) inst += "i";
-            dump_riscv_inst(inst, reg, lhs, rhs);
-        } else if (op == KOOPA_RBO_OR) {
-            std::string inst = "or";
-            if (rhs_imm) inst += "i";
-            dump_riscv_inst(inst, reg, lhs, rhs);
-        } else if (op == KOOPA_RBO_XOR) {
-            std::string inst = "xor";
-            if (rhs_imm) inst += "i";
-            dump_riscv_inst(inst, reg, lhs, rhs);
-        } else if (op == KOOPA_RBO_SHL) {
-            dump_riscv_inst("shl", reg, lhs, rhs);
-        } else if (op == KOOPA_RBO_SHR) {
-            dump_riscv_inst("shr", reg, lhs, rhs);
-        } else if (op == KOOPA_RBO_SAR) {
-            dump_riscv_inst("sar", reg, lhs, rhs);
-        } else {
-            std::cerr << "Invalid operator for binary inst." << std::endl;
-            assert(false);
-        }
-
-        // write the result back to regfile
-        write_tmp_reg(value, reg);
-
-        // recycle imm's registers
-        if (recycle_lhs) write_tmp_reg(nullptr, lhs);
-        if (recycle_rhs) write_tmp_reg(nullptr, rhs);
-
-        return 0;
-
-    } else if (tag == KOOPA_RVT_RETURN) {
-        // move operand to a0
-        auto ret_val = value->kind.data.ret.value;
-        if (ret_val->kind.tag == KOOPA_RVT_BINARY) {
-            auto ret = find_tmp_reg(ret_val);
-            if (ret != "a0") dump_riscv_inst("mv", "a0", ret);
-        } else if (ret_val->kind.tag == KOOPA_RVT_INTEGER) {
-            auto ret = std::to_string(ret_val->kind.data.integer.value);
-            dump_riscv_inst("li", "a0", ret);
-        }
-        // write the result back to regfile
-        write_tmp_reg(value, "a0");
-        dump_riscv_inst("ret");
-        return 0;
-    } else {
-        std::cerr << "invalid value type." << std::endl;
+    if (tag == KOOPA_RVT_BINARY)
+        return dump_koopa_raw_value_binary(value);
+    else if (tag == KOOPA_RVT_RETURN)
+        return dump_koopa_raw_value_return(value);
+    else {
+        std::cerr << "Raw value type " << tag << " not implemented."
+                  << std::endl;
         return -1;
     }
+}
+
+int TargetCodeGenerator::dump_koopa_raw_value_binary(koopa_raw_value_t value) {
+    auto op = value->kind.data.binary.op;
+    std::string lhs, rhs;
+    // t0 = t1 op t2
+
+    // find lhs operand, assign a register if necessary
+    auto lhs_val = value->kind.data.binary.lhs;
+    if (lhs_val->kind.tag == KOOPA_RVT_BINARY) {
+        // binary: load from stack
+        auto offset = runtime_stack.top().get_info(lhs_val).offset;
+        dump_lw("t1", offset);
+        lhs = "t1";
+    } else if (lhs_val->kind.tag == KOOPA_RVT_INTEGER) {
+        auto lhs_int = lhs_val->kind.data.integer.value;
+        dump_riscv_inst("li", "t1", std::to_string(lhs_int));
+        lhs = "t1";
+    }
+
+    // find rhs operand
+    // imm format is available for andi/ori/xori/addi
+    auto rhs_val = value->kind.data.binary.rhs;
+    bool rhs_imm = false;  // TODO: simplify rhs imm
+    if (rhs_val->kind.tag == KOOPA_RVT_BINARY) {
+        // binary: load from stack
+        auto offset = runtime_stack.top().get_info(rhs_val).offset;
+        dump_lw("t2", offset);
+        rhs = "t2";
+    } else if (rhs_val->kind.tag == KOOPA_RVT_INTEGER) {
+        auto rhs_int = rhs_val->kind.data.integer.value;
+        dump_riscv_inst("li", "t2", std::to_string(rhs_int));
+        rhs = "t2";
+    }
+
+    // given op type, dump the value
+    auto reg = "t0";
+    if (op == KOOPA_RBO_NOT_EQ) {
+        dump_riscv_inst("xor", reg, lhs, rhs);
+        dump_riscv_inst("snez", reg, reg);
+    } else if (op == KOOPA_RBO_EQ) {
+        dump_riscv_inst("xor", reg, lhs, rhs);
+        dump_riscv_inst("seqz", reg, reg);
+    } else if (op == KOOPA_RBO_GT) {
+        dump_riscv_inst("sgt", reg, lhs, rhs);
+    } else if (op == KOOPA_RBO_LT) {
+        dump_riscv_inst("slt", reg, lhs, rhs);
+    } else if (op == KOOPA_RBO_GE) {  // not less than
+        dump_riscv_inst("slt", reg, lhs, rhs);
+        dump_riscv_inst("xori", reg, reg, "1");
+    } else if (op == KOOPA_RBO_LE) {  // not greater than
+        dump_riscv_inst("sgt", reg, lhs, rhs);
+        dump_riscv_inst("xori", reg, reg, "1");
+    } else if (op == KOOPA_RBO_ADD) {
+        std::string inst = "add";
+        if (rhs_imm) inst += "i";
+        dump_riscv_inst(inst, reg, lhs, rhs);
+    } else if (op == KOOPA_RBO_SUB) {
+        dump_riscv_inst("sub", reg, lhs, rhs);
+    } else if (op == KOOPA_RBO_MUL) {
+        dump_riscv_inst("mul", reg, lhs, rhs);
+    } else if (op == KOOPA_RBO_DIV) {
+        dump_riscv_inst("div", reg, lhs, rhs);
+    } else if (op == KOOPA_RBO_MOD) {
+        dump_riscv_inst("rem", reg, lhs, rhs);
+    } else if (op == KOOPA_RBO_AND) {
+        std::string inst = "and";
+        if (rhs_imm) inst += "i";
+        dump_riscv_inst(inst, reg, lhs, rhs);
+    } else if (op == KOOPA_RBO_OR) {
+        std::string inst = "or";
+        if (rhs_imm) inst += "i";
+        dump_riscv_inst(inst, reg, lhs, rhs);
+    } else if (op == KOOPA_RBO_XOR) {
+        std::string inst = "xor";
+        if (rhs_imm) inst += "i";
+        dump_riscv_inst(inst, reg, lhs, rhs);
+    } else if (op == KOOPA_RBO_SHL) {
+        dump_riscv_inst("shl", reg, lhs, rhs);
+    } else if (op == KOOPA_RBO_SHR) {
+        dump_riscv_inst("shr", reg, lhs, rhs);
+    } else if (op == KOOPA_RBO_SAR) {
+        dump_riscv_inst("sar", reg, lhs, rhs);
+    } else {
+        std::cerr << "Invalid operator for binary inst." << std::endl;
+        assert(false);
+    }
+
+    // write the result
+    auto offset = runtime_stack.top().get_info(value).offset;
+    dump_sw(reg, offset);
+
+    return 0;
+}
+
+int TargetCodeGenerator::dump_koopa_raw_value_return(koopa_raw_value_t value) {
+    // move operand to a0
+    auto ret_val = value->kind.data.ret.value;
+    if (ret_val->kind.tag == KOOPA_RVT_BINARY) {
+        auto offset = runtime_stack.top().get_info(ret_val).offset;
+        dump_lw("a0", offset);
+    } else if (ret_val->kind.tag == KOOPA_RVT_INTEGER) {
+        auto ret = std::to_string(ret_val->kind.data.integer.value);
+        dump_riscv_inst("li", "a0", ret);
+    }
+    dump_riscv_inst("ret");
+    return 0;
 }

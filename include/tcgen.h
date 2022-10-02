@@ -123,12 +123,16 @@ class TargetCodeGenerator {
    private:
     koopa_raw_program_builder_t builder;
 
-    // dumping to riscv
     void dump_riscv_inst(std::string inst, std::string reg_0, std::string reg_1,
                          std::string reg_2);
+    void dump_lw(std::string reg, int offset);
+    void dump_sw(std::string reg, int offset);
 
     int dump_koopa_raw_slice(koopa_raw_slice_t slice);
     int dump_koopa_raw_function(koopa_raw_function_t func);
     int dump_koopa_raw_basic_block(koopa_raw_basic_block_t bb);
-    int dump_koopa_raw_value_inst(koopa_raw_value_t value);
+    int dump_koopa_raw_value(koopa_raw_value_t value);
+
+    int dump_koopa_raw_value_binary(koopa_raw_value_t value);
+    int dump_koopa_raw_value_return(koopa_raw_value_t value);
 };
