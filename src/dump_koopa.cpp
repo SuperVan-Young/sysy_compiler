@@ -229,6 +229,7 @@ void StmtAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
                            irgen, out);
 
         // dump end block:
+        // TODO: maybe this block is unreachable as well
         irgen.control_flow.cur_block = end_block_name;
         out << end_block_name << ":" << std::endl;
     } else if (type == STMT_AST_TYPE_BREAK) {
@@ -236,13 +237,13 @@ void StmtAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
         assert(dst_break != "");
         out << "  jump " << dst_break;
         irgen.control_flow.modify_ending_status(
-            BASIC_BLOCK_ENDING_STATUS_JUMP);
+            BASIC_BLOCK_ENDING_STATUS_BREAK);
     } else if (type == STMT_AST_TYPE_CONTINUE) {
         auto dst_continue = irgen.control_flow.get_dst_continue();
         assert(dst_continue != "");
         out << "  jump " << dst_continue;
         irgen.control_flow.modify_ending_status(
-            BASIC_BLOCK_ENDING_STATUS_JUMP);
+            BASIC_BLOCK_ENDING_STATUS_CONTINUE);
     } else {
         assert(false);
     }

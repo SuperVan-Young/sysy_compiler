@@ -37,7 +37,9 @@ typedef enum {
     BASIC_BLOCK_ENDING_STATUS_NULL,
     BASIC_BLOCK_ENDING_STATUS_BRANCH,
     BASIC_BLOCK_ENDING_STATUS_RETURN,
-    BASIC_BLOCK_ENDING_STATUS_JUMP,
+    BASIC_BLOCK_ENDING_STATUS_JUMP,      // the default jump
+    BASIC_BLOCK_ENDING_STATUS_BREAK,     // jump caused by break
+    BASIC_BLOCK_ENDING_STATUS_CONTINUE,  // jump caused by continue
     BASIC_BLOCK_ENDING_STATUS_UNREACHABLE,
 } basic_block_ending_status_t;
 
