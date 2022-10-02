@@ -76,19 +76,14 @@ void BlockAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
     irgen.symbol_table.push_block();
 
     for (auto &item : items) {
-        item->dump_koopa(irgen, out);
-        // take care of early return or unreachable, raised by return stmt
+        // if block has ending status, early exit.
         auto status = irgen.control_flow.check_ending_status();
-        if (status == BASIC_BLOCK_ENDING_STATUS_RETURN ||
-            status == BASIC_BLOCK_ENDING_STATUS_UNREACHABLE) {
+        if (status != BASIC_BLOCK_ENDING_STATUS_NULL)
             break;
-        }
+        item->dump_koopa(irgen, out);
     }
 
     irgen.symbol_table.pop_block();
-    // block doesn't change control flow on itself
-    // if-else / while is handled in Stmt
-    // Fix-up return is handled in func
 }
 
 void BlockItemAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
@@ -227,6 +222,7 @@ void StmtAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
         irgen.stack_val.pop();
         out << "  br " << cond << ", " << body_block_name << ", "
             << end_block_name << std::endl;
+        irgen.control_flow.modify_ending_status(BASIC_BLOCK_ENDING_STATUS_BRANCH);
 
         // dump body block, same as if-then-else stmt
         dump_koopa_if_stmt(do_stmt.get(), body_block_name, entry_block_name,
@@ -240,13 +236,13 @@ void StmtAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
         assert(dst_break != "");
         out << "  jump " << dst_break;
         irgen.control_flow.modify_ending_status(
-            BASIC_BLOCK_ENDING_STATUS_UNREACHABLE);
+            BASIC_BLOCK_ENDING_STATUS_JUMP);
     } else if (type == STMT_AST_TYPE_CONTINUE) {
         auto dst_continue = irgen.control_flow.get_dst_continue();
         assert(dst_continue != "");
         out << "  jump " << dst_continue;
         irgen.control_flow.modify_ending_status(
-            BASIC_BLOCK_ENDING_STATUS_UNREACHABLE);
+            BASIC_BLOCK_ENDING_STATUS_JUMP);
     } else {
         assert(false);
     }
