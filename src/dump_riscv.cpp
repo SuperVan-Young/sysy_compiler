@@ -255,6 +255,9 @@ int TargetCodeGenerator::dump_koopa_raw_value_store(koopa_raw_value_t value) {
     if (src->kind.tag == KOOPA_RVT_INTEGER) {
         int src_val = src->kind.data.integer.value;
         dump_riscv_inst("li", "t0", std::to_string(src_val));
+    } else if (src->kind.tag == KOOPA_RVT_BINARY) {
+        auto offset = runtime_stack.top().get_info(src).offset;
+        dump_lw("t0", offset);
     } else {
         std::cerr << "STORE src type: " << src->kind.tag << std::endl;
         assert(false);
