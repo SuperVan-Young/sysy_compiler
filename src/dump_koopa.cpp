@@ -50,16 +50,18 @@ void FuncDefAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
     auto block_info = BasicBlockInfo();
     auto block_name = irgen.new_block();
     irgen.control_flow.insert_info(block_name, block_info);
+    irgen.control_flow.cur_block = block_name;
+    irgen.control_flow.to_next_block = false;
     out << block_name << ":" << std::endl;
 
     block->dump_koopa(irgen, out);
 
     // check if basic block has returned, and give up control flow
-    if (irgen.control_flow.check_ending_status() !=
-        BASIC_BLOCK_ENDING_STATUS_RETURN) {
+    if (irgen.control_flow.check_ending_status() ==
+        BASIC_BLOCK_ENDING_STATUS_NULL) {
         irgen.control_flow.modify_ending_status(
             BASIC_BLOCK_ENDING_STATUS_RETURN);
-        out << "  ret 114514" << std::endl;  // return random const
+        out << "  ret 1919810" << std::endl;  // return random const
     }
     irgen.control_flow.cur_block = "";
     irgen.control_flow.to_next_block = false;

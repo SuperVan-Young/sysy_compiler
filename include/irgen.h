@@ -6,6 +6,7 @@
 #include <stack>
 #include <utility>
 #include <vector>
+#include <iostream>
 
 class SymbolTableEntry {
    public:
