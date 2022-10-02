@@ -112,6 +112,7 @@ static void dump_koopa_if_stmt(BaseAST *stmt, std::string cur_block,
 
 void StmtAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
     if (type == STMT_AST_TYPE_ASSIGN) {
+        assert(exp.get() != nullptr);
         exp->dump_koopa(irgen, out);
         auto r_val = irgen.stack_val.top();
         irgen.stack_val.pop();
@@ -149,15 +150,20 @@ void StmtAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
         // generate then, else, end basic blocks
         assert(then_stmt.get() != nullptr);
         auto then_block_name = irgen.new_block();
-        irgen.control_flow.insert_info(then_block_name, BasicBlockInfo());
         auto end_block_name = irgen.new_block();
-        irgen.control_flow.insert_info(end_block_name, BasicBlockInfo());
+
+        auto block_info = BasicBlockInfo();  // inherite dst break/continue
+        block_info.dst_break = irgen.control_flow.get_dst_break();
+        block_info.dst_continue = irgen.control_flow.get_dst_continue();
+
+        irgen.control_flow.insert_info(then_block_name, block_info);
+        irgen.control_flow.insert_info(end_block_name, block_info);
 
         irgen.control_flow.modify_ending_status(
             BASIC_BLOCK_ENDING_STATUS_BRANCH);
         if (else_stmt.get() != nullptr) {
             auto else_block_name = irgen.new_block();
-            irgen.control_flow.insert_info(else_block_name, BasicBlockInfo());
+            irgen.control_flow.insert_info(else_block_name, block_info);
             out << "  br " << cond << ", " << then_block_name << ", "
                 << else_block_name << std::endl;
 
@@ -196,12 +202,18 @@ void StmtAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
         auto entry_block_name = irgen.new_block();
         auto body_block_name = irgen.new_block();
         auto end_block_name = irgen.new_block();
-        auto body_block_info = BasicBlockInfo();
+
+        auto body_block_info = BasicBlockInfo();  // new dsts
         body_block_info.dst_break = end_block_name;
         body_block_info.dst_continue = entry_block_name;
+
+        auto end_block_info = BasicBlockInfo();  // old dsts
+        end_block_info.dst_break = irgen.control_flow.get_dst_break();
+        end_block_info.dst_continue = irgen.control_flow.get_dst_continue();
+
         irgen.control_flow.insert_info(entry_block_name, BasicBlockInfo());
         irgen.control_flow.insert_info(body_block_name, body_block_info);
-        irgen.control_flow.insert_info(end_block_name, BasicBlockInfo());
+        irgen.control_flow.insert_info(end_block_name, end_block_info);
 
         // finish current block
         out << "  jump " << entry_block_name << std::endl;
