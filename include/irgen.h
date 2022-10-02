@@ -29,6 +29,32 @@ class SymbolTable {
     void pop_block();
 };
 
+typedef enum {
+    BASIC_BLOCK_ENDING_STATUS_NULL,
+    BASIC_BLOCK_ENDING_STATUS_BRANCH,
+    BASIC_BLOCK_ENDING_STATUS_RETURN,
+    BASIC_BLOCK_ENDING_STATUS_JUMP,
+} basic_block_ending_status_t;
+
+class BasicBlockInfo {
+   public:
+    basic_block_ending_status_t ending;
+    std::string next;
+
+    BasicBlockInfo() : ending(BASIC_BLOCK_ENDING_STATUS_NULL), next("") {}
+};
+
+class ControlFlow {
+   private:
+    std::map<std::string, BasicBlockInfo> cfg;
+   public:
+    std::string cur_block = "";
+    bool to_next_block = false;
+
+    void get_info(std::string name, BasicBlockInfo &info);
+    void insert_info(std::string name, BasicBlockInfo info);
+};
+
 // Save information when generating koopa IR
 class IRGenerator {
    private:

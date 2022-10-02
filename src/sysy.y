@@ -269,8 +269,8 @@ Stmt
   }
   | Block {
     auto ast = new StmtAST();
-    ast->type == STMT_AST_TYPE_3;
-    ast->block = unique_ptr<BastAST>($1);
+    ast->type = STMT_AST_TYPE_3;
+    ast->block = unique_ptr<BaseAST>($1);
     $$ = ast;
   }
   | RETURN Exp ';' {
