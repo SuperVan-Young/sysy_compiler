@@ -15,7 +15,7 @@ void DeclAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
 }
 
 void DeclDefAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
-    assert(!irgen.symbol_table.exist_entry(ident));
+    // insert will automatically check duplicated entry
     SymbolTableEntry entry;
 
     if (is_const) {
@@ -26,18 +26,23 @@ void DeclDefAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
         irgen.symbol_table.insert_entry(ident, entry);
     } else {
         entry.is_const = false;
-        // allocate memory for var
-        out << "  @" << ident << " = alloc i32" << std::endl;
-        // add var entry into symbol table
+
+        // store initial value to memory, if there is
+        std::string store_val;
         if (init_val.get()) {
-            // store initial value to memory, if there is
             auto exp = dynamic_cast<InitValAST *>(init_val.get())->exp.get();
             exp->dump_koopa(irgen, out);
-            auto store_val = irgen.stack_val.top();
+            store_val = irgen.stack_val.top();
             irgen.stack_val.pop();
-            out << "  store " << store_val << ", @" << ident << std::endl;
         }
         irgen.symbol_table.insert_entry(ident, entry);
+
+        auto aliased_name = irgen.symbol_table.get_aliased_name(ident);
+        out << "  @" << aliased_name << " = alloc i32" << std::endl;
+        if (init_val.get()) {
+            out << "  store " << store_val << ", @" << aliased_name
+            << std::endl;
+        }
     }
 }
 
@@ -45,16 +50,51 @@ void FuncDefAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
     out << "fun @" << ident << "(): "
         << "i32"
         << " {" << std::endl;
+
+    // prepare the first block for control flow
+    auto block_info = BasicBlockInfo();
+    auto block_name = irgen.new_block();
+    irgen.control_flow.insert_info(block_name, block_info);
+    irgen.control_flow.cur_block = block_name;
+    irgen.control_flow.to_next_block = false;
+    out << block_name << ":" << std::endl;
+
     block->dump_koopa(irgen, out);
+
+    // check if basic block has returned, and give up control flow
+    if (irgen.control_flow.check_ending_status() ==
+        BASIC_BLOCK_ENDING_STATUS_NULL) {
+        irgen.control_flow.modify_ending_status(
+            BASIC_BLOCK_ENDING_STATUS_RETURN);
+        out << "  ret 1919810" << std::endl;  // return random const
+    }
+    irgen.control_flow.cur_block = "";
+    irgen.control_flow.to_next_block = false;
+
     out << "}" << std::endl;
 }
 
 void BlockAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
-    auto block_name = irgen.new_block();
-    out << block_name << ":" << std::endl;
+    irgen.symbol_table.push_block();
+    if (irgen.control_flow.to_next_block) {
+        irgen.control_flow.switch_control();
+        out << irgen.control_flow.cur_block << ":" << std::endl;
+    }
+
     for (auto &item : items) {
         item->dump_koopa(irgen, out);
+        // needless to care about if-else / while here
+        // only take care of early return, raised by return stmt
+        if (irgen.control_flow.check_ending_status() ==
+            BASIC_BLOCK_ENDING_STATUS_RETURN) {
+            break;
+        }
     }
+
+    irgen.symbol_table.pop_block();
+    // block doesn't change control flow on itself
+    // if-else / while is handled in Stmt
+    // Fix-up return is handled in func
 }
 
 void BlockItemAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
@@ -71,13 +111,29 @@ void StmtAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
         // lval shouldn't be const
         auto lval_name = dynamic_cast<LValAST *>(lval.get())->ident;
         assert(!irgen.symbol_table.is_const_entry(lval_name));
-        out << "  store " << r_val << ", @" << lval_name << std::endl;
+        auto aliased_lval_name = irgen.symbol_table.get_aliased_name(lval_name);
+        out << "  store " << r_val << ", @" << aliased_lval_name << std::endl;
     } else if (type == STMT_AST_TYPE_1) {
         // return
-        exp->dump_koopa(irgen, out);
-        auto ret_val = irgen.stack_val.top();
-        irgen.stack_val.pop();
-        out << "  ret " << ret_val << std::endl;
+        if (exp.get() != nullptr) {
+            exp->dump_koopa(irgen, out);
+            auto ret_val = irgen.stack_val.top();
+            irgen.stack_val.pop();
+            out << "  ret " << ret_val << std::endl;
+        } else {
+            out << "  ret 114514" << std::endl;  // return random const
+        }
+        irgen.control_flow.modify_ending_status(
+            BASIC_BLOCK_ENDING_STATUS_RETURN);  // block should return
+    } else if (type == STMT_AST_TYPE_2) {
+        // exp
+        if (exp.get() != nullptr) {
+            exp->dump_koopa(irgen, out);
+            irgen.stack_val.pop();  // no one use it
+        }
+    } else if (type == STMT_AST_TYPE_3) {
+        // block
+        block->dump_koopa(irgen, out);
     } else {
         assert(false);
     }
@@ -266,13 +322,13 @@ void LValAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
     assert(irgen.symbol_table.exist_entry(ident));
 
     if (irgen.symbol_table.is_const_entry(ident)) {
-        int val;
-        irgen.symbol_table.get_entry_val(ident, val);
+        int val = irgen.symbol_table.get_entry_val(ident);
         irgen.stack_val.push(std::to_string(val));
     } else {
         auto val = irgen.new_val();
+        auto aliased_name = irgen.symbol_table.get_aliased_name(ident);
         out << "  " << val << " = load "
-            << "@" << ident << std::endl;
+            << "@" << aliased_name << std::endl;
         irgen.stack_val.push(val);
     }
 }

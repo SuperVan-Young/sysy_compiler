@@ -96,15 +96,20 @@ class BlockItemAST : public BaseAST {
 typedef enum {
     STMT_AST_TYPE_0 = 0,  // assign
     STMT_AST_TYPE_1,      // return
+    STMT_AST_TYPE_2,      // exp
+    STMT_AST_TYPE_3,      // block
 } stmt_ast_type;
 
 // Stmt          ::= LVal "=" Exp ";"
-//                 | "return" Exp ";"
+//                 | [Exp] ";"
+//                 | Block
+//                 | "return" [Exp] ";"
 class StmtAST : public BaseAST {
    public:
     stmt_ast_type type;
     std::unique_ptr<BaseAST> lval;
     std::unique_ptr<BaseAST> exp;
+    std::unique_ptr<BaseAST> block;
 
     void dump_koopa(IRGenerator &irgen, std::ostream &out) const override;
 };

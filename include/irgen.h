@@ -1,45 +1,64 @@
 #pragma once
 
+#include <cassert>
 #include <cstring>
 #include <map>
 #include <stack>
-#include <cassert>
 #include <utility>
+#include <vector>
+#include <iostream>
 
 class SymbolTableEntry {
    public:
     bool is_const;
     int val;
+    int alias;
 };
+
+typedef std::map<std::string, SymbolTableEntry> symbol_table_block_t;
 
 class SymbolTable {
    private:
-    std::map<std::string, SymbolTableEntry> entries;
+    std::vector<symbol_table_block_t> block_stack;
+    std::map<std::string, int> alias_cnt;
+
    public:
-    bool exist_entry(std::string name) {
-        auto iter = entries.find(name);
-        return iter != entries.end();
-    }
+    bool exist_entry(std::string name);
+    bool is_const_entry(std::string name);
+    void insert_entry(std::string name, SymbolTableEntry entry);
+    int get_entry_val(std::string name);
+    void write_entry_val(std::string name, int val);
+    void push_block();
+    void pop_block();
+    std::string get_aliased_name(std::string name);
+};
 
-    bool is_const_entry(std::string name) {
-        auto iter = entries.find(name);
-        return iter->second.is_const;
-    }
-    
-    void insert_entry(std::string name, SymbolTableEntry entry) {
-        assert(!exist_entry(name));
-        entries.insert(std::pair<std::string, SymbolTableEntry>(name, entry));
-    }
+typedef enum {
+    BASIC_BLOCK_ENDING_STATUS_NULL,
+    BASIC_BLOCK_ENDING_STATUS_BRANCH,
+    BASIC_BLOCK_ENDING_STATUS_RETURN,
+    BASIC_BLOCK_ENDING_STATUS_JUMP,
+} basic_block_ending_status_t;
 
-    void get_entry_val(std::string name, int &val) {
-        auto &entry = entries[name];
-        val = entry.val;
-    }
+class BasicBlockInfo {
+   public:
+    basic_block_ending_status_t ending;
+    std::string next;
 
-    void write_entry_val(std::string name, int val) {
-        auto &entry = entries[name];
-        entry.val = val;
-    }
+    BasicBlockInfo() : ending(BASIC_BLOCK_ENDING_STATUS_NULL), next("") {}
+};
+
+class ControlFlow {
+   private:
+    std::map<std::string, BasicBlockInfo> cfg;
+   public:
+    std::string cur_block = "";
+    bool to_next_block = false;
+
+    void insert_info(std::string name, BasicBlockInfo info);
+    void switch_control();
+    basic_block_ending_status_t check_ending_status();
+    void modify_ending_status(basic_block_ending_status_t status);
 };
 
 // Save information when generating koopa IR
@@ -55,6 +74,7 @@ class IRGenerator {
     }
     std::stack<std::string> stack_val;  // parse exp
     SymbolTable symbol_table;
+    ControlFlow control_flow;
 
     std::string new_val() {
         auto val = cnt_val++;
