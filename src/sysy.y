@@ -255,10 +255,34 @@ Stmt
     ast->exp = unique_ptr<BaseAST>($3);
     $$ = ast;
   }
+  | Exp ';' {
+    auto ast = new StmtAST();
+    ast->type = STMT_AST_TYPE_2;
+    ast->exp = unique_ptr<BaseAST>($1);
+    $$ = ast;
+  }
+  | ';' {
+    auto ast = new StmtAST();
+    ast->type = STMT_AST_TYPE_2;
+    ast->exp = unique_ptr<BaseAST>(nullptr);
+    $$ = ast;
+  }
+  | Block {
+    auto ast = new StmtAST();
+    ast->type == STMT_AST_TYPE_3;
+    ast->block = unique_ptr<BastAST>($1);
+    $$ = ast;
+  }
   | RETURN Exp ';' {
     auto ast = new StmtAST();
     ast->type = STMT_AST_TYPE_1;
     ast->exp = unique_ptr<BaseAST>($2);
+    $$ = ast;
+  }
+  | RETURN ';' {
+    auto ast = new StmtAST();
+    ast->type = STMT_AST_TYPE_1;
+    ast->exp = unique_ptr<BaseAST>(nullptr);
     $$ = ast;
   }
   ;

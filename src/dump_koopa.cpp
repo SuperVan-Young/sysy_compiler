@@ -98,10 +98,23 @@ void StmtAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
         out << "  store " << r_val << ", @" << lval_name << std::endl;
     } else if (type == STMT_AST_TYPE_1) {
         // return
-        exp->dump_koopa(irgen, out);
-        auto ret_val = irgen.stack_val.top();
-        irgen.stack_val.pop();
-        out << "  ret " << ret_val << std::endl;
+        if (exp.get() != nullptr) {
+            exp->dump_koopa(irgen, out);
+            auto ret_val = irgen.stack_val.top();
+            irgen.stack_val.pop();
+            out << "  ret " << ret_val << std::endl;
+        } else {
+            out << "  ret 114514" << std::endl;  // return random const
+        }
+    } else if (type == STMT_AST_TYPE_2) {
+        // exp
+        if (exp.get() != nullptr) {
+            exp->dump_koopa(irgen, out);
+            irgen.stack_val.pop();  // no one use it
+        }
+    } else if (type == STMT_AST_TYPE_3) {
+        // block
+        block->dump_koopa(irgen, out);
     } else {
         assert(false);
     }
