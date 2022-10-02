@@ -1,10 +1,11 @@
 #pragma once
 
+#include <cassert>
 #include <cstring>
 #include <map>
 #include <stack>
-#include <cassert>
 #include <utility>
+#include <vector>
 
 class SymbolTableEntry {
    public:
@@ -12,34 +13,20 @@ class SymbolTableEntry {
     int val;
 };
 
+typedef std::map<std::string, SymbolTableEntry> symbol_table_block_t;
+
 class SymbolTable {
    private:
-    std::map<std::string, SymbolTableEntry> entries;
+    std::vector<symbol_table_block_t> block_stack;
+
    public:
-    bool exist_entry(std::string name) {
-        auto iter = entries.find(name);
-        return iter != entries.end();
-    }
-
-    bool is_const_entry(std::string name) {
-        auto iter = entries.find(name);
-        return iter->second.is_const;
-    }
-    
-    void insert_entry(std::string name, SymbolTableEntry entry) {
-        assert(!exist_entry(name));
-        entries.insert(std::pair<std::string, SymbolTableEntry>(name, entry));
-    }
-
-    void get_entry_val(std::string name, int &val) {
-        auto &entry = entries[name];
-        val = entry.val;
-    }
-
-    void write_entry_val(std::string name, int val) {
-        auto &entry = entries[name];
-        entry.val = val;
-    }
+    bool exist_entry(std::string name);
+    bool is_const_entry(std::string name);
+    void insert_entry(std::string name, SymbolTableEntry entry);
+    void get_entry_val(std::string name, int &val);
+    void write_entry_val(std::string name, int val);
+    void push_block();
+    void pop_block();
 };
 
 // Save information when generating koopa IR

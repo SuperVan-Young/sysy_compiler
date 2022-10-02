@@ -53,7 +53,7 @@ void BlockAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
     auto block_name = irgen.new_block();
     out << block_name << ":" << std::endl;
 
-    // TODO: before entering a basic block, create a symbol table
+    irgen.symbol_table.push_block();
 
     bool is_returned = false;
     for (auto &item : items) {
@@ -69,7 +69,7 @@ void BlockAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
         out << "  ret 114514" << std::endl;
     }
 
-    // TODO: after leaving a basic block,
+    irgen.symbol_table.pop_block();
 }
 
 bool BlockItemAST::is_return_stmt() {
