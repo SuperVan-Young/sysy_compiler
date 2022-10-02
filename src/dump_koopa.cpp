@@ -52,9 +52,33 @@ void FuncDefAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
 void BlockAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
     auto block_name = irgen.new_block();
     out << block_name << ":" << std::endl;
+
+    // TODO: before entering a basic block, create a symbol table
+
+    bool is_returned = false;
     for (auto &item : items) {
         item->dump_koopa(irgen, out);
+        if (dynamic_cast<BlockItemAST *>(item.get())->is_return_stmt()) {
+            // the following stmts are useless
+            is_returned = true;
+            break;
+        }
     }
+    if (!is_returned) {
+        // add a random return if not exist
+        out << "  ret 114514" << std::endl;
+    }
+
+    // TODO: after leaving a basic block,
+}
+
+bool BlockItemAST::is_return_stmt() {
+    if (type == BLOCK_ITEM_AST_TYPE_1) {
+        if (dynamic_cast<StmtAST *>(item.get())->type == STMT_AST_TYPE_1) {
+            return true;
+        }
+    }
+    return false;
 }
 
 void BlockItemAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
