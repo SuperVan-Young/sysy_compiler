@@ -15,10 +15,11 @@ class BaseAST {
     virtual void dump_koopa(IRGenerator &irgen, std::ostream &out) const = 0;
 };
 
-// CompUnit       ::= FuncDef
+// CompUnit       ::= [CompUnit] FuncDef
 class CompUnitAST : public BaseAST {
    public:
     std::unique_ptr<BaseAST> func_def;
+    std::unique_ptr<BaseAST> next;
 
     void dump_koopa(IRGenerator &irgen, std::ostream &out) const override;
 };
@@ -60,14 +61,24 @@ class InitValAST : public BaseAST {
     }
 };
 
-// FuncDef       ::= FuncType IDENT "(" ")" Block;
+// FuncDef       ::= FuncType IDENT "(" [FuncFParams] ")" Block;
 class FuncDefAST : public BaseAST {
    public:
     std::string func_type;
     std::string ident;
     std::unique_ptr<BaseAST> block;
+    std::vector<std::unique_ptr<BaseAST>> params;
 
     void dump_koopa(IRGenerator &irgen, std::ostream &out) const override;
+};
+
+// FuncFParams   ::= FuncFParam {"," FuncFParam}
+// FuncFParam    ::= BType IDENT
+class FuncFParam : public BaseAST {
+   public:
+    std::string ident;
+    std::string btype;
+    FuncFParam *next;
 };
 
 // Block         ::= "{" {BlockItem} "}";
@@ -160,11 +171,19 @@ class BinaryExpAST : public CalcAST {
                   bool calc_const) const override;
 };
 
+typedef enum {
+    UNARY_EXP_AST_TYPE_OP,    // op unary_exp
+    UNARY_EXP_AST_TYPE_FUNC,  // function call
+} unary_exp_ast_type_t;
+
 // UnaryExp      ::= PrimaryExp | UnaryOp UnaryExp;
+//                 | IDENT "(" [FuncRParams] ")"
 class UnaryExpAST : public CalcAST {
    public:
     std::string op;
     std::unique_ptr<BaseAST> unary_exp;
+    std::string ident;
+    std::vector<std::unique_ptr<BaseAST>> params;
 
     void dump_koopa(IRGenerator &irgen, std::ostream &out) const override;
     bool calc_val(IRGenerator &irgen, int &result,
