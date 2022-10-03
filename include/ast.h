@@ -74,11 +74,25 @@ class FuncDefAST : public BaseAST {
 
 // FuncFParams   ::= FuncFParam {"," FuncFParam}
 // FuncFParam    ::= BType IDENT
-class FuncFParam : public BaseAST {
+class FuncFParamAST : public BaseAST {
    public:
     std::string ident;
     std::string btype;
-    FuncFParam *next;
+    FuncFParamAST *next;
+
+    void dump_koopa(IRGenerator &irgen, std::ostream &out) const override {
+        assert(false);
+    }
+};
+
+class FuncRParamAST : public BaseAST {
+    public:
+    std::unique_ptr<BaseAST> exp;
+    FuncRParamAST *next;
+
+    void dump_koopa(IRGenerator &irgen, std::ostream &out) const override {
+        assert(false);
+    }
 };
 
 // Block         ::= "{" {BlockItem} "}";
@@ -180,6 +194,7 @@ typedef enum {
 //                 | IDENT "(" [FuncRParams] ")"
 class UnaryExpAST : public CalcAST {
    public:
+   unary_exp_ast_type_t type;
     std::string op;
     std::unique_ptr<BaseAST> unary_exp;
     std::string ident;

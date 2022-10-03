@@ -38,6 +38,7 @@ Hexadecimal     0[xX][0-9a-fA-F]+
 {BlockComment}  { /* ignore */ }
 
 "int"           { return INT; }
+"void"          { return VOID; }
 "return"        { return RETURN; }
 "const"         { return CONST; }
 "if"            { return IF; }

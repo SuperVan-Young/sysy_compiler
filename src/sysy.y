@@ -40,13 +40,17 @@ using namespace std;
 }
 
 // manifest constant for lexer, representing terminating token
-%token INT RETURN CONST IF ELSE WHILE BREAK CONTINUE
+%token INT VOID RETURN CONST IF ELSE WHILE BREAK CONTINUE
 %token <str_val> IDENT
 %token <int_val> INT_CONST
 %token <str_val> LE GE EQ NE LAND LOR
 
 // Non-terminating tokens
-%type <ast_val> FuncDef 
+// If a token appears 0 or 1 time, we write two rules respectivelly.
+// If a token appears 0 or multiple times, we call it Optional.
+%type <ast_val> CompUnit
+                FuncDef FuncFParams OptionalFuncFParam FuncFParam
+                FuncRParams OptionalFuncRParam
                 Decl ConstDecl ConstDef OptionalConstDef ConstInitVal 
                 VarDecl VarDef OptionalVarDef InitVal
                 Block OptionalBlockItem BlockItem
@@ -60,14 +64,27 @@ using namespace std;
 
 %%
 
-CompUnit
-  : FuncDef {
-    auto comp_unit = make_unique<CompUnitAST>();
-    comp_unit->func_def = unique_ptr<BaseAST>($1);
+Start
+  : CompUnit {
+    auto comp_unit = unique_ptr<BaseAST>($1);
     ast = move(comp_unit);
   }
   ;
 
+CompUnit
+  : FuncDef {
+    auto ast = new CompUnitAST();
+    ast->func_def = unique_ptr<BaseAST>($1);
+    ast->next = unique_ptr<BaseAST>(nullptr);
+    $$ = ast;
+  }
+  | CompUnit FuncDef {
+    auto ast = new CompUnitAST();
+    ast->func_def = unique_ptr<BaseAST>($2);
+    ast->next = unique_ptr<BaseAST>($1);
+    $$ = ast;
+  }
+  ;
 
 Decl
   : ConstDecl {
@@ -193,13 +210,55 @@ FuncDef
     ast->block = unique_ptr<BaseAST>($5);
     $$ = ast;
   }
+  | FuncType IDENT '(' FuncFParams ')' Block {
+    auto ast = new FuncDefAST();
+    ast->func_type = *unique_ptr<string>($1);
+    ast->ident = *unique_ptr<string>($2);
+    ast->block = unique_ptr<BaseAST>($6);
+    FuncFParamAST* cur = (FuncFParamAST*)$4;
+    FuncFParamAST* tmp;
+    while (cur != nullptr) {
+      tmp = cur->next;
+      ast->params.push_back(unique_ptr<BaseAST>((BaseAST*)cur));
+      cur = tmp;
+    }
+    $$ = ast;
+  }
   ;
 
 FuncType
   : INT {
     $$ = new std::string("int");
   }
+  | VOID {
+    $$ = new std::string("void");
+  }
   ;
+
+FuncFParams
+  : FuncFParam OptionalFuncFParam {
+    ((FuncFParamAST*)$1)->next = ((FuncFParamAST*)$2);
+    $$ = $1;
+  }
+  ;
+
+FuncFParam
+  : BType IDENT {
+    auto ast = new FuncFParamAST();
+    ast->btype = *unique_ptr<string>($1);
+    ast->ident = *unique_ptr<string>($2);
+    $$ = ast;
+  }
+  ;
+
+OptionalFuncFParam
+  : ',' FuncFParam OptionalFuncFParam {
+    ((FuncFParamAST*)$2)->next = ((FuncFParamAST*)$3);
+    $$ = $2;
+  }
+  | {
+    $$ = nullptr;
+  }
 
 Block
   : '{' OptionalBlockItem '}' {
@@ -446,10 +505,51 @@ UnaryExp
   }
   | UnaryOp UnaryExp {
     auto ast = new UnaryExpAST();
+    ast->type = UNARY_EXP_AST_TYPE_OP;
     ast->op = string(*$1);
     ast->unary_exp = unique_ptr<BaseAST>($2);
     delete $1;
     $$ = ast;
+  }
+  | IDENT '(' FuncRParams ')' {
+    auto ast = new UnaryExpAST();
+    ast->type = UNARY_EXP_AST_TYPE_FUNC;
+    ast->ident = *unique_ptr<string>($1);
+    FuncRParamAST* cur = (FuncRParamAST*)($3);
+    FuncRParamAST* tmp;
+    while (cur != nullptr) {
+      tmp = cur->next;
+      ast->params.push_back(move(((FuncRParamAST*)cur)->exp));
+      delete cur;
+      cur = tmp;
+    }
+  }
+  | IDENT '(' ')' {
+    auto ast = new UnaryExpAST();
+    ast->type = UNARY_EXP_AST_TYPE_FUNC;
+    ast->ident = *unique_ptr<string>($1);
+    $$ = ast;
+  }
+  ;
+
+FuncRParams
+  : Exp OptionalFuncRParam {
+    auto ast = new FuncRParamAST();
+    ast->exp = unique_ptr<BaseAST>($1);
+    ast->next = (FuncRParamAST*)$2;
+    $$ = ast;
+  }
+  ;
+
+OptionalFuncRParam
+  : ',' Exp OptionalFuncRParam {
+    auto ast = new FuncRParamAST();
+    ast->exp = unique_ptr<BaseAST>($2);
+    ast->next = (FuncRParamAST*)$3;
+    $$ = ast;
+  }
+  | {
+    $$ = nullptr;
   }
   ;
 
