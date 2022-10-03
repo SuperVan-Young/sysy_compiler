@@ -101,6 +101,7 @@ static void dump_koopa_if_stmt(BaseAST *stmt, std::string cur_block,
         BASIC_BLOCK_ENDING_STATUS_NULL) {
         out << "  jump " << end_block << std::endl;
         irgen.control_flow.modify_ending_status(BASIC_BLOCK_ENDING_STATUS_JUMP);
+        irgen.control_flow.add_control_edge(end_block);
     }
 }
 
@@ -145,6 +146,7 @@ void StmtAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
         assert(then_stmt.get() != nullptr);
         auto then_block_name = irgen.new_block();
         auto end_block_name = irgen.new_block();
+        auto else_block_name = irgen.new_block();
 
         auto block_info = BasicBlockInfo();  // inherite dst break/continue
         block_info.dst_break = irgen.control_flow.get_dst_break();
@@ -152,14 +154,17 @@ void StmtAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
 
         irgen.control_flow.insert_info(then_block_name, block_info);
         irgen.control_flow.insert_info(end_block_name, block_info);
+        irgen.control_flow.insert_info(else_block_name, block_info);
 
+        // finish current block
         irgen.control_flow.modify_ending_status(
             BASIC_BLOCK_ENDING_STATUS_BRANCH);
+
         if (else_stmt.get() != nullptr) {
-            auto else_block_name = irgen.new_block();
-            irgen.control_flow.insert_info(else_block_name, block_info);
             out << "  br " << cond << ", " << then_block_name << ", "
                 << else_block_name << std::endl;
+            irgen.control_flow.add_control_edge(then_block_name);
+            irgen.control_flow.add_control_edge(else_block_name);
 
             dump_koopa_if_stmt(then_stmt.get(), then_block_name, end_block_name,
                                irgen, out);
@@ -167,30 +172,34 @@ void StmtAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
                                irgen, out);
 
             irgen.control_flow.cur_block = end_block_name;
-            // Optimization: two return stmt makes end stmt unreachable
-            auto then_status =
-                irgen.control_flow.check_ending_status(then_block_name);
-            auto else_status =
-                irgen.control_flow.check_ending_status(else_block_name);
-            if ((then_status == BASIC_BLOCK_ENDING_STATUS_RETURN ||
-                 then_status == BASIC_BLOCK_ENDING_STATUS_BREAK ||
-                 then_status == BASIC_BLOCK_ENDING_STATUS_CONTINUE) &&
-                (else_status == BASIC_BLOCK_ENDING_STATUS_RETURN ||
-                 else_status == BASIC_BLOCK_ENDING_STATUS_BREAK ||
-                 else_status == BASIC_BLOCK_ENDING_STATUS_CONTINUE)) {
+            // Optimization: not dumping non reachable bb
+            if (irgen.control_flow.is_reachable()) {
+                out << end_block_name << ":" << std::endl;
+            } else {
                 irgen.control_flow.modify_ending_status(
                     BASIC_BLOCK_ENDING_STATUS_UNREACHABLE);
-            } else {
-                out << end_block_name << ":" << std::endl;
             }
 
         } else {
             out << "  br " << cond << ", " << then_block_name << ", "
                 << end_block_name << std::endl;
+            irgen.control_flow.add_control_edge(then_block_name);
+            irgen.control_flow.add_control_edge(end_block_name);
+
             dump_koopa_if_stmt(then_stmt.get(), then_block_name, end_block_name,
                                irgen, out);
+            irgen.control_flow.modify_ending_status(
+                BASIC_BLOCK_ENDING_STATUS_UNREACHABLE, else_block_name);
+
             irgen.control_flow.cur_block = end_block_name;
-            out << end_block_name << ":" << std::endl;
+            // Optimization: not dumping non reachable bb
+            // this might happen if cond could be pre-determined
+            if (irgen.control_flow.is_reachable()) {
+                out << end_block_name << ":" << std::endl;
+            } else {
+                irgen.control_flow.modify_ending_status(
+                    BASIC_BLOCK_ENDING_STATUS_UNREACHABLE);
+            }
         }
     } else if (type == STMT_AST_TYPE_WHILE) {
         assert(exp.get() != nullptr);
@@ -216,17 +225,22 @@ void StmtAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
         // finish current block
         out << "  jump " << entry_block_name << std::endl;
         irgen.control_flow.modify_ending_status(BASIC_BLOCK_ENDING_STATUS_JUMP);
+        irgen.control_flow.add_control_edge(entry_block_name);
 
         // dump entry block
         irgen.control_flow.cur_block = entry_block_name;
         out << entry_block_name << ":" << std::endl;
+
         exp->dump_koopa(irgen, out);
         auto cond = irgen.stack_val.top();
         irgen.stack_val.pop();
+
         out << "  br " << cond << ", " << body_block_name << ", "
             << end_block_name << std::endl;
         irgen.control_flow.modify_ending_status(
             BASIC_BLOCK_ENDING_STATUS_BRANCH);
+        irgen.control_flow.add_control_edge(body_block_name);
+        irgen.control_flow.add_control_edge(end_block_name);
 
         // dump body block, same as if-then-else stmt
         dump_koopa_if_stmt(do_stmt.get(), body_block_name, entry_block_name,
@@ -236,19 +250,26 @@ void StmtAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
         // TODO: maybe this block is unreachable, if cond can be determined
         // and body returns
         irgen.control_flow.cur_block = end_block_name;
-        out << end_block_name << ":" << std::endl;
+        if (irgen.control_flow.is_reachable()) {
+            out << end_block_name << ":" << std::endl;
+        }
+
     } else if (type == STMT_AST_TYPE_BREAK) {
         auto dst_break = irgen.control_flow.get_dst_break();
         assert(dst_break != "");
         out << "  jump " << dst_break << std::endl;
         irgen.control_flow.modify_ending_status(
             BASIC_BLOCK_ENDING_STATUS_BREAK);
+        irgen.control_flow.add_control_edge(dst_break);
+
     } else if (type == STMT_AST_TYPE_CONTINUE) {
         auto dst_continue = irgen.control_flow.get_dst_continue();
         assert(dst_continue != "");
         out << "  jump " << dst_continue << std::endl;
         irgen.control_flow.modify_ending_status(
             BASIC_BLOCK_ENDING_STATUS_CONTINUE);
+        irgen.control_flow.add_control_edge(dst_continue);
+
     } else {
         assert(false);
     }
