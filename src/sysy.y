@@ -522,6 +522,12 @@ UnaryExp
     delete $1;
     $$ = ast;
   }
+  | IDENT '(' ')' {
+    auto ast = new UnaryExpAST();
+    ast->type = UNARY_EXP_AST_TYPE_FUNC;
+    ast->ident = *unique_ptr<string>($1);
+    $$ = ast;
+  }
   | IDENT '(' FuncRParams ')' {
     auto ast = new UnaryExpAST();
     ast->type = UNARY_EXP_AST_TYPE_FUNC;
@@ -534,11 +540,6 @@ UnaryExp
       delete cur;
       cur = tmp;
     }
-  }
-  | IDENT '(' ')' {
-    auto ast = new UnaryExpAST();
-    ast->type = UNARY_EXP_AST_TYPE_FUNC;
-    ast->ident = *unique_ptr<string>($1);
     $$ = ast;
   }
   ;

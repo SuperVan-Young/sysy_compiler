@@ -7,7 +7,11 @@ bool is_symbol(std::string operand) {
 }
 
 void StartAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
-    for (auto &unit : units) unit->dump_koopa(irgen, out);
+    // the actual dumping order is reverse!
+    for (auto it = units.rbegin(); it != units.rend(); it++) {
+        it->get()->dump_koopa(irgen, out);
+        out << std::endl;
+    }
 }
 
 void CompUnitAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
@@ -109,7 +113,7 @@ void FuncDefAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
             irgen.symbol_table.get_aliased_name(param->ident, false);
         assert(param->btype == "int");
         out << "  %" << tmp_name << " = alloc i32" << std::endl;
-        out << "  store @" << tmp_name << " %" << tmp_name << std::endl;
+        out << "  store @" << tmp_name << ", %" << tmp_name << std::endl;
     }
 
     block->dump_koopa(irgen, out);
@@ -120,9 +124,9 @@ void FuncDefAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
         irgen.control_flow.modify_ending_status(
             BASIC_BLOCK_ENDING_STATUS_RETURN);
         if (func_type == "int") {
-            out << "ret 1919810" << std::endl;
+            out << "  ret 1919810" << std::endl;
         } else if (func_type == "void") {
-            out << "ret" << std::endl;
+            out << "  ret" << std::endl;
         } else {
             assert(false);
         }
