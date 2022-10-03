@@ -18,8 +18,7 @@ class BaseAST {
 // Start          ::= CompUnit
 class StartAST : public BaseAST {
    public:
-    std::vector<std::unique_ptr<BaseAST>> funcs;
-    std::vector<std::unique_ptr<BaseAST>> decls;
+    std::vector<std::unique_ptr<BaseAST>> units;
 
     void dump_koopa(IRGenerator &irgen, std::ostream &out) const override;
 };
@@ -37,7 +36,7 @@ class CompUnitAST : public BaseAST {
     std::unique_ptr<BaseAST> func_def;
     CompUnitAST* next;
 
-    void dump_koopa(IRGenerator &irgen, std::ostream &out) const override {}
+    void dump_koopa(IRGenerator &irgen, std::ostream &out) const override;
 };
 
 // Decl          ::= ConstDecl | VarDecl

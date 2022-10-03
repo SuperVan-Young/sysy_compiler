@@ -7,8 +7,19 @@ bool is_symbol(std::string operand) {
 }
 
 void StartAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
-    for (auto &func : funcs) func->dump_koopa(irgen, out);
-    for (auto &decl : decls) decl->dump_koopa(irgen, out);
+    for (auto &unit : units) unit->dump_koopa(irgen, out);
+}
+
+void CompUnitAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
+    if (type == COMP_UNIT_AST_TYPE_FUNC) {
+        assert(func_def.get() != nullptr);
+        func_def->dump_koopa(irgen, out);
+    } else if (type == COMP_UNIT_AST_TYPE_DECL) {
+        assert(decl.get() != nullptr);
+        decl->dump_koopa(irgen, out);
+    } else {
+        assert(false);
+    }
 }
 
 void DeclAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {

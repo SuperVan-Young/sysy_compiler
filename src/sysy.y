@@ -71,12 +71,8 @@ Start
     CompUnitAST *tmp;
     while (cur != nullptr) {
       tmp = cur->next;
-      if (cur->type == COMP_UNIT_AST_TYPE_FUNC) {
-        start->funcs.push_back(move(cur->func_def));
-      } else if (cur->type == COMP_UNIT_AST_TYPE_DECL) {
-        start->decls.push_back(move(cur->decl));
-      }
-      delete cur;
+      start->units.push_back(unique_ptr<BaseAST>(cur));
+      cur->next = nullptr;
       cur = tmp;
     }
     ast = move(start);
