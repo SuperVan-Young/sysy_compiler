@@ -66,22 +66,36 @@ using namespace std;
 
 Start
   : CompUnit {
-    auto comp_unit = unique_ptr<BaseAST>($1);
-    ast = move(comp_unit);
+    auto start = make_unique<StartAST>();
+    CompUnitAST *cur = (CompUnitAST*)$1;
+    CompUnitAST *tmp;
+    while (cur != nullptr) {
+      tmp = cur->next;
+      if (cur->type == COMP_UNIT_AST_TYPE_FUNC) {
+        start->funcs.push_back(move(cur->func_def));
+      } else if (cur->type == COMP_UNIT_AST_TYPE_DECL) {
+        start->decls.push_back(move(cur->decl));
+      }
+      delete cur;
+      cur = tmp;
+    }
+    ast = move(start);
   }
   ;
 
 CompUnit
   : FuncDef {
     auto ast = new CompUnitAST();
+    ast->type = COMP_UNIT_AST_TYPE_FUNC;
     ast->func_def = unique_ptr<BaseAST>($1);
-    ast->next = unique_ptr<BaseAST>(nullptr);
+    ast->next = nullptr;
     $$ = ast;
   }
   | CompUnit FuncDef {
     auto ast = new CompUnitAST();
+    ast->type = COMP_UNIT_AST_TYPE_FUNC;
     ast->func_def = unique_ptr<BaseAST>($2);
-    ast->next = unique_ptr<BaseAST>($1);
+    ast->next = (CompUnitAST*)$1;
     $$ = ast;
   }
   ;

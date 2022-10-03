@@ -84,6 +84,7 @@ class IRGenerator {
     IRGenerator() {
         cnt_val = 0;
         cnt_block = 0;
+        symbol_table.push_block();  // global symbol table
     }
     std::stack<std::string> stack_val;  // parse exp
     SymbolTable symbol_table;

@@ -15,13 +15,29 @@ class BaseAST {
     virtual void dump_koopa(IRGenerator &irgen, std::ostream &out) const = 0;
 };
 
+// Start          ::= CompUnit
+class StartAST : public BaseAST {
+   public:
+    std::vector<std::unique_ptr<BaseAST>> funcs;
+    std::vector<std::unique_ptr<BaseAST>> decls;
+
+    void dump_koopa(IRGenerator &irgen, std::ostream &out) const override;
+};
+
+typedef enum {
+    COMP_UNIT_AST_TYPE_FUNC,
+    COMP_UNIT_AST_TYPE_DECL,
+} comp_unit_ast_type_t;
+
 // CompUnit       ::= [CompUnit] FuncDef
 class CompUnitAST : public BaseAST {
    public:
+    comp_unit_ast_type_t type;
+    std::unique_ptr<BaseAST> decl;
     std::unique_ptr<BaseAST> func_def;
-    std::unique_ptr<BaseAST> next;
+    CompUnitAST* next;
 
-    void dump_koopa(IRGenerator &irgen, std::ostream &out) const override;
+    void dump_koopa(IRGenerator &irgen, std::ostream &out) const override {}
 };
 
 // Decl          ::= ConstDecl | VarDecl
@@ -86,7 +102,7 @@ class FuncFParamAST : public BaseAST {
 };
 
 class FuncRParamAST : public BaseAST {
-    public:
+   public:
     std::unique_ptr<BaseAST> exp;
     FuncRParamAST *next;
 
@@ -194,7 +210,7 @@ typedef enum {
 //                 | IDENT "(" [FuncRParams] ")"
 class UnaryExpAST : public CalcAST {
    public:
-   unary_exp_ast_type_t type;
+    unary_exp_ast_type_t type;
     std::string op;
     std::unique_ptr<BaseAST> unary_exp;
     std::string ident;

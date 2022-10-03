@@ -6,8 +6,9 @@ bool is_symbol(std::string operand) {
     return c == '%' || c == '@';
 }
 
-void CompUnitAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
-    func_def->dump_koopa(irgen, out);
+void StartAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
+    for (auto &func : funcs) func->dump_koopa(irgen, out);
+    for (auto &decl : decls) decl->dump_koopa(irgen, out);
 }
 
 void DeclAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
