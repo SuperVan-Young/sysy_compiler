@@ -7,12 +7,19 @@
 #include <stack>
 #include <utility>
 #include <vector>
+#include <set>
 
 class SymbolTableEntry {
    public:
     bool is_const;
     int val;
-    int alias;
+    int alias; // suffix to differ local vars, added automatically
+    bool is_func_param;  // use % instead of @
+};
+
+class FuncSymbolTableEntry {
+    public:
+    std::string func_type;
 };
 
 typedef std::map<std::string, SymbolTableEntry> symbol_table_block_t;
@@ -21,6 +28,8 @@ class SymbolTable {
    private:
     std::vector<symbol_table_block_t> block_stack;
     std::map<std::string, int> alias_cnt;
+    std::map<std::string, FuncSymbolTableEntry> funcs;
+    bool pending_push = false;
 
    public:
     bool exist_entry(std::string name);
@@ -28,9 +37,11 @@ class SymbolTable {
     void insert_entry(std::string name, SymbolTableEntry entry);
     int get_entry_val(std::string name);
     void write_entry_val(std::string name, int val);
-    void push_block();
+    void push_block(bool by_func_def=false);
     void pop_block();
-    std::string get_aliased_name(std::string name);
+    std::string get_aliased_name(std::string name, bool with_prefix=true);
+    void insert_func_entry(std::string name, FuncSymbolTableEntry entry);
+    std::string get_func_entry_type(std::string name);
 };
 
 typedef enum {

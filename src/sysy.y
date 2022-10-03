@@ -230,6 +230,7 @@ FuncDef
     while (cur != nullptr) {
       tmp = cur->next;
       ast->params.push_back(unique_ptr<BaseAST>((BaseAST*)cur));
+      cur->next = nullptr;
       cur = tmp;
     }
     $$ = ast;

@@ -3,7 +3,7 @@
 // recursively check if a symbol exists
 bool SymbolTable::exist_entry(std::string name) {
     // recursive searching
-    for (auto it_b = block_stack.rbegin(); it_b!= block_stack.rend(); it_b++) {
+    for (auto it_b = block_stack.rbegin(); it_b != block_stack.rend(); it_b++) {
         auto it_entry = it_b->find(name);
         if (it_entry != it_b->end()) return true;
     }
@@ -13,7 +13,7 @@ bool SymbolTable::exist_entry(std::string name) {
 // recursively check if a symbol is const
 bool SymbolTable::is_const_entry(std::string name) {
     // recursive searching
-    for (auto it_b = block_stack.rbegin(); it_b!= block_stack.rend(); it_b++) {
+    for (auto it_b = block_stack.rbegin(); it_b != block_stack.rend(); it_b++) {
         auto it_entry = it_b->find(name);
         if (it_entry != it_b->end()) return it_entry->second.is_const;
     }
@@ -41,7 +41,7 @@ void SymbolTable::insert_entry(std::string name, SymbolTableEntry entry) {
 
 // recursively fetch an entry's val
 int SymbolTable::get_entry_val(std::string name) {
-    for (auto it_b = block_stack.rbegin(); it_b!= block_stack.rend(); it_b++) {
+    for (auto it_b = block_stack.rbegin(); it_b != block_stack.rend(); it_b++) {
         auto it_entry = it_b->find(name);
         if (it_entry != it_b->end()) {
             return it_entry->second.val;
@@ -51,7 +51,7 @@ int SymbolTable::get_entry_val(std::string name) {
 }
 
 void SymbolTable::write_entry_val(std::string name, int val) {
-    for (auto it_b = block_stack.rbegin(); it_b!= block_stack.rend(); it_b++) {
+    for (auto it_b = block_stack.rbegin(); it_b != block_stack.rend(); it_b++) {
         auto it_entry = it_b->find(name);
         if (it_entry != it_b->end()) {
             it_entry->second.val = val;
@@ -61,18 +61,50 @@ void SymbolTable::write_entry_val(std::string name, int val) {
     assert(false);
 }
 
-void SymbolTable::push_block() {
-    block_stack.push_back(symbol_table_block_t());
+void SymbolTable::push_block(bool by_func_def) {
+    if (by_func_def) {
+        assert(!pending_push);
+        pending_push = true;
+        block_stack.push_back(symbol_table_block_t());
+    } else {
+        if (pending_push) {
+            pending_push = false;
+        } else {
+            block_stack.push_back(symbol_table_block_t());
+        }
+    }
 }
 
 void SymbolTable::pop_block() { block_stack.pop_back(); }
 
-std::string SymbolTable::get_aliased_name(std::string name) {
-    for (auto it_b = block_stack.rbegin(); it_b!= block_stack.rend(); it_b++) {
+std::string SymbolTable::get_aliased_name(std::string name, bool with_prefix) {
+    for (auto it_b = block_stack.rbegin(); it_b != block_stack.rend(); it_b++) {
         auto it_entry = it_b->find(name);
         if (it_entry != it_b->end()) {
-            return name + "_" + std::to_string(it_entry->second.alias);
+            std::string prefix;
+            if (it_entry->second.is_func_param)
+                prefix = "%";
+            else
+                prefix = "@";
+            auto suffix = std::to_string(it_entry->second.alias);
+            if (with_prefix)
+                return prefix + name + "_" + suffix;
+            else
+                return name + "_" + suffix;
         }
     }
     assert(false);
+}
+
+void SymbolTable::insert_func_entry(std::string name,
+                                    FuncSymbolTableEntry entry) {
+    auto it = funcs.find(name);
+    assert(it == funcs.end());
+    funcs.insert(std::make_pair(name, entry));
+}
+
+std::string SymbolTable::get_func_entry_type(std::string name) {
+    auto it = funcs.find(name);
+    assert(it != funcs.end());
+    return it->second.func_type;
 }

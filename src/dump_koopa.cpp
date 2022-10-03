@@ -29,6 +29,7 @@ void DeclAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
 void DeclDefAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
     // insert will automatically check duplicated entry
     SymbolTableEntry entry;
+    entry.is_func_param = false;
 
     if (is_const) {
         entry.is_const = true;
@@ -50,25 +51,66 @@ void DeclDefAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
         irgen.symbol_table.insert_entry(ident, entry);
 
         auto aliased_name = irgen.symbol_table.get_aliased_name(ident);
-        out << "  @" << aliased_name << " = alloc i32" << std::endl;
+        out << "  " << aliased_name << " = alloc i32" << std::endl;
         if (init_val.get()) {
-            out << "  store " << store_val << ", @" << aliased_name
-                << std::endl;
+            out << "  store " << store_val << ", " << aliased_name << std::endl;
         }
     }
 }
 
 void FuncDefAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
-    out << "fun @" << ident << "(): "
-        << "i32"
-        << " {" << std::endl;
+    // register func name
+    auto func_entry = FuncSymbolTableEntry();
+    func_entry.func_type = func_type;
+    irgen.symbol_table.insert_func_entry(ident, func_entry);
+    out << "fun @" << ident;
 
-    // prepare the first block for control flow
+    // dump param list
+    irgen.symbol_table.push_block(true);  // pending a recent push block
+    out << "(";
+    int cnt_param = 0;
+    for (auto &param_ : params) {
+        // dump formal parameters
+        auto param = (FuncFParamAST *)(param_.get());
+        auto symbol_entry = SymbolTableEntry();
+        symbol_entry.is_func_param = true;
+        irgen.symbol_table.insert_entry(param->ident, symbol_entry);
+        out << "@" << irgen.symbol_table.get_aliased_name(param->ident, false);
+
+        // dump param type
+        assert(param->btype == "int");
+        out << ": i32";
+
+        if (++cnt_param < params.size()) out << ", ";
+    }
+    out << ")";
+
+    // dump func type
+    if (func_type == "int") {
+        out << ": i32 ";
+    } else if (func_type == "void") {
+    } else {
+        assert(false);
+    }
+
+    out << " {" << std::endl;
+
+    // prepare the first basic block for control flow
     auto block_info = BasicBlockInfo();
     auto block_name = irgen.new_block();
     irgen.control_flow.insert_info(block_name, block_info);
     irgen.control_flow.cur_block = block_name;
     out << block_name << ":" << std::endl;
+
+    // duplicate formal parameters
+    for (auto &param_ : params) {
+        auto param = (FuncFParamAST *)(param_.get());
+        auto tmp_name =
+            irgen.symbol_table.get_aliased_name(param->ident, false);
+        assert(param->btype == "int");
+        out << "  %" << tmp_name << " = alloc i32" << std::endl;
+        out << "  store @" << tmp_name << " %" << tmp_name << std::endl;
+    }
 
     block->dump_koopa(irgen, out);
 
@@ -77,7 +119,13 @@ void FuncDefAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
         BASIC_BLOCK_ENDING_STATUS_NULL) {
         irgen.control_flow.modify_ending_status(
             BASIC_BLOCK_ENDING_STATUS_RETURN);
-        out << "  ret 1919810" << std::endl;  // return random const
+        if (func_type == "int") {
+            out << "ret 1919810" << std::endl;
+        } else if (func_type == "void") {
+            out << "ret" << std::endl;
+        } else {
+            assert(false);
+        }
     }
     irgen.control_flow.cur_block = "";
 
@@ -128,7 +176,7 @@ void StmtAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
         auto lval_name = dynamic_cast<LValAST *>(lval.get())->ident;
         assert(!irgen.symbol_table.is_const_entry(lval_name));
         auto aliased_lval_name = irgen.symbol_table.get_aliased_name(lval_name);
-        out << "  store " << r_val << ", @" << aliased_lval_name << std::endl;
+        out << "  store " << r_val << ", " << aliased_lval_name << std::endl;
     } else if (type == STMT_AST_TYPE_RETURN) {
         if (exp.get() != nullptr) {
             exp->dump_koopa(irgen, out);
@@ -405,48 +453,82 @@ void BinaryExpAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
 }
 
 void UnaryExpAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
-    // unary_op unary_exp
-    unary_exp->dump_koopa(irgen, out);
+    if (type == UNARY_EXP_AST_TYPE_OP) {
+        // unary_op unary_exp
+        unary_exp->dump_koopa(irgen, out);
 
-    auto sub_val = irgen.stack_val.top();  // fetch sub expression's token
-    irgen.stack_val.pop();
+        auto sub_val = irgen.stack_val.top();  // fetch sub expression's token
+        irgen.stack_val.pop();
 
-    // Optimization: calculate directly if sub_val is const
-    if (!is_symbol(sub_val)) {
-        int val = std::stoi(sub_val);
-        int ret;
-        if (op == "!")
-            ret = !val;
-        else if (op == "-")
-            ret = -val;
-        else if (op == "+")
-            ret = val;
-        else {
-            std::cerr << "Invalid op: " << op << std::endl;
-            assert(false);
+        // Optimization: calculate directly if sub_val is const
+        if (!is_symbol(sub_val)) {
+            int val = std::stoi(sub_val);
+            int ret;
+            if (op == "!")
+                ret = !val;
+            else if (op == "-")
+                ret = -val;
+            else if (op == "+")
+                ret = val;
+            else {
+                std::cerr << "Invalid op: " << op << std::endl;
+                assert(false);
+            }
+            irgen.stack_val.push(std::to_string(ret));
+            return;
         }
-        irgen.stack_val.push(std::to_string(ret));
-        return;
-    }
 
-    // dump exp w.r.t op
-    std::string exp_val;
-    if (op == "!") {
-        exp_val = irgen.new_val();
-        out << "  " << exp_val << " = ";
-        out << "eq " << sub_val << ", 0" << std::endl;
-    } else if (op == "-") {
-        exp_val = irgen.new_val();
-        out << "  " << exp_val << " = ";
-        out << "sub 0, " << sub_val << std::endl;
-    } else if (op == "+") {
-        exp_val = sub_val;  // ignore
+        // dump exp w.r.t op
+        std::string exp_val;
+        if (op == "!") {
+            exp_val = irgen.new_val();
+            out << "  " << exp_val << " = ";
+            out << "eq " << sub_val << ", 0" << std::endl;
+        } else if (op == "-") {
+            exp_val = irgen.new_val();
+            out << "  " << exp_val << " = ";
+            out << "sub 0, " << sub_val << std::endl;
+        } else if (op == "+") {
+            exp_val = sub_val;  // ignore
+        } else {
+            std::cerr << "Invalid op: " << op << std::endl;
+            assert(false);  // Not Implemented
+        }
+
+        irgen.stack_val.push(exp_val);  // push exp token to stack
+    } else if (type == UNARY_EXP_AST_TYPE_FUNC) {
+        // dump all the exp
+        std::vector<std::string> rparams;
+        for (auto &param: params) {
+            param->dump_koopa(irgen, out);
+            rparams.push_back(irgen.stack_val.top());
+            irgen.stack_val.pop();
+        }
+
+        assert(ident != "");
+        auto func_type = irgen.symbol_table.get_func_entry_type(ident);
+        if (func_type == "int") {
+            auto ret_val = irgen.new_val();
+            out << "  " << ret_val << " = ";
+            irgen.stack_val.push(ret_val);
+        } else if (func_type == "void") {
+            out << "  ";
+        } else {
+            std::cerr << "Unknown func type: " << func_type << std::endl;
+        }
+        out << "call @" << ident << "(";
+        int cnt_param = 0;
+        for (auto &param: rparams) {
+            out << param;
+            if (++cnt_param != rparams.size())
+                out << ", ";
+        }
+        out << ")" << std::endl;
+
     } else {
-        std::cerr << "Invalid op: " << op << std::endl;
-        assert(false);  // Not Implemented
+        std::cerr << "Invalid unary exp type: " << type << std::endl;
+        assert(false);
     }
-
-    irgen.stack_val.push(exp_val);  // push exp token to stack
 }
 
 void PrimaryExpAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
@@ -473,8 +555,7 @@ void LValAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
     } else {
         auto val = irgen.new_val();
         auto aliased_name = irgen.symbol_table.get_aliased_name(ident);
-        out << "  " << val << " = load "
-            << "@" << aliased_name << std::endl;
+        out << "  " << val << " = load " << aliased_name << std::endl;
         irgen.stack_val.push(val);
     }
 }
