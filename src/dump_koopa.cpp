@@ -7,6 +7,30 @@ bool is_symbol(std::string operand) {
 }
 
 void StartAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
+    // dump sysy library function
+    out << "decl @getint(): i32" << std::endl;
+    out << "decl @getch(): i32" << std::endl;
+    out << "decl @getarray(*i32): i32" << std::endl;
+    out << "decl @putint(i32)" << std::endl;
+    out << "decl @putch(i32)" << std::endl;
+    out << "decl @putarray(i32, *i32)" << std::endl;
+    out << "decl @starttime()" << std::endl;
+    out << "decl @stoptime()" << std::endl;
+
+    // add these functions to global symbol table
+    FuncSymbolTableEntry int_entry;
+    FuncSymbolTableEntry void_entry;
+    int_entry.func_type = "int";
+    void_entry.func_type = "void";
+    irgen.symbol_table.insert_func_entry("getint", int_entry);
+    irgen.symbol_table.insert_func_entry("getch", int_entry);
+    irgen.symbol_table.insert_func_entry("getarray", int_entry);
+    irgen.symbol_table.insert_func_entry("putint", void_entry);
+    irgen.symbol_table.insert_func_entry("putch", void_entry);
+    irgen.symbol_table.insert_func_entry("putarray", void_entry);
+    irgen.symbol_table.insert_func_entry("starttime", void_entry);
+    irgen.symbol_table.insert_func_entry("stoptime", void_entry);
+
     // the actual dumping order is reverse!
     for (auto it = units.rbegin(); it != units.rend(); it++) {
         it->get()->dump_koopa(irgen, out);
@@ -503,7 +527,7 @@ void UnaryExpAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
     } else if (type == UNARY_EXP_AST_TYPE_FUNC) {
         // dump all the exp
         std::vector<std::string> rparams;
-        for (auto &param: params) {
+        for (auto &param : params) {
             param->dump_koopa(irgen, out);
             rparams.push_back(irgen.stack_val.top());
             irgen.stack_val.pop();
@@ -517,15 +541,15 @@ void UnaryExpAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
             irgen.stack_val.push(ret_val);
         } else if (func_type == "void") {
             out << "  ";
+            irgen.stack_val.push("INVALID");  // keep consistent with other exp
         } else {
             std::cerr << "Unknown func type: " << func_type << std::endl;
         }
         out << "call @" << ident << "(";
         int cnt_param = 0;
-        for (auto &param: rparams) {
+        for (auto &param : rparams) {
             out << param;
-            if (++cnt_param != rparams.size())
-                out << ", ";
+            if (++cnt_param != rparams.size()) out << ", ";
         }
         out << ")" << std::endl;
 
