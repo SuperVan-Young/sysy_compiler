@@ -108,3 +108,7 @@ std::string SymbolTable::get_func_entry_type(std::string name) {
     assert(it != funcs.end());
     return it->second.func_type;
 }
+
+bool SymbolTable::is_global_table() {
+    return block_stack.size() == 1;
+}

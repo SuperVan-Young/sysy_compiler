@@ -87,10 +87,24 @@ CompUnit
     ast->next = nullptr;
     $$ = ast;
   }
+  | Decl {
+    auto ast = new CompUnitAST();
+    ast->type = COMP_UNIT_AST_TYPE_DECL;
+    ast->decl = unique_ptr<BaseAST>($1);
+    ast->next = nullptr;
+    $$ = ast;
+  }
   | CompUnit FuncDef {
     auto ast = new CompUnitAST();
     ast->type = COMP_UNIT_AST_TYPE_FUNC;
     ast->func_def = unique_ptr<BaseAST>($2);
+    ast->next = (CompUnitAST*)$1;
+    $$ = ast;
+  }
+  | CompUnit Decl {
+    auto ast = new CompUnitAST();
+    ast->type = COMP_UNIT_AST_TYPE_DECL;
+    ast->decl = unique_ptr<BaseAST>($2);
     ast->next = (CompUnitAST*)$1;
     $$ = ast;
   }
@@ -238,11 +252,11 @@ FuncDef
   ;
 
 FuncType
-  : INT {
-    $$ = new std::string("int");
-  }
-  | VOID {
+  : VOID {
     $$ = new std::string("void");
+  }
+  | INT {
+    $$ = new std::string("int");
   }
   ;
 

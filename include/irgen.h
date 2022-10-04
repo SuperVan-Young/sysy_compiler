@@ -42,6 +42,7 @@ class SymbolTable {
     std::string get_aliased_name(std::string name, bool with_prefix=true);
     void insert_func_entry(std::string name, FuncSymbolTableEntry entry);
     std::string get_func_entry_type(std::string name);
+    bool is_global_table();
 };
 
 typedef enum {

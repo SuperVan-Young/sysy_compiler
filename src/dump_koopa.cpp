@@ -55,9 +55,9 @@ void DeclAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
 }
 
 void DeclDefAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
-    // insert will automatically check duplicated entry
     SymbolTableEntry entry;
     entry.is_func_param = false;
+    bool is_global = irgen.symbol_table.is_global_table();
 
     if (is_const) {
         entry.is_const = true;
@@ -68,20 +68,40 @@ void DeclDefAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
     } else {
         entry.is_const = false;
 
-        // store initial value to memory, if there is
-        std::string store_val;
-        if (init_val.get()) {
-            auto exp = dynamic_cast<InitValAST *>(init_val.get())->exp.get();
-            exp->dump_koopa(irgen, out);
-            store_val = irgen.stack_val.top();
-            irgen.stack_val.pop();
-        }
-        irgen.symbol_table.insert_entry(ident, entry);
+        if (is_global) {
+            std::string store_val = "zeroinit";
+            if (init_val.get()) {
+                auto exp =
+                    dynamic_cast<InitValAST *>(init_val.get())->exp.get();
+                // global decl only use const
+                int exp_val;
+                dynamic_cast<CalcAST *>(exp)->calc_val(irgen, exp_val, true);
+                store_val = std::to_string(exp_val);
+            }
+            irgen.symbol_table.insert_entry(ident, entry);
 
-        auto aliased_name = irgen.symbol_table.get_aliased_name(ident);
-        out << "  " << aliased_name << " = alloc i32" << std::endl;
-        if (init_val.get()) {
-            out << "  store " << store_val << ", " << aliased_name << std::endl;
+            auto aliased_name = irgen.symbol_table.get_aliased_name(ident);
+            out << "  global " << aliased_name << " = alloc i32, " << store_val
+                << std::endl;
+        } else {
+            // store initial value to memory, if there is
+            std::string store_val;
+            if (init_val.get()) {
+                auto exp =
+                    dynamic_cast<InitValAST *>(init_val.get())->exp.get();
+                // local decl could use variables
+                exp->dump_koopa(irgen, out);
+                store_val = irgen.stack_val.top();
+                irgen.stack_val.pop();
+            }
+            irgen.symbol_table.insert_entry(ident, entry);
+
+            auto aliased_name = irgen.symbol_table.get_aliased_name(ident);
+            out << "  " << aliased_name << " = alloc i32" << std::endl;
+            if (init_val.get()) {
+                out << "  store " << store_val << ", " << aliased_name
+                    << std::endl;
+            }
         }
     }
 }
