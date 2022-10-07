@@ -82,14 +82,19 @@ class ControlFlow {
    public:
     std::string cur_block = "";
 
+    // inserting new blocks
     void insert_if(std::string name_then, std::string name_end);
     void insert_if_else(std::string name_then, std::string name_else,
                         std::string name_end);
     void insert_while(std::string name_entry, std::string name_body,
                       std::string name_end);
 
+    // switching control flow
+    void init_entry_block(std::string name, std::ostream &out);
     bool switch_control_flow(std::string name, std::ostream &out);
-    
+    void _break(std::ostream &out);
+    void _continue(std::ostream &out);
+
     basic_block_ending_status_t check_ending_status();
     void modify_ending_status(basic_block_ending_status_t status);
     void add_control_edge(std::string dst, std::string src = "");

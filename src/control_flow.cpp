@@ -52,6 +52,13 @@ void ControlFlow::insert_while(std::string name_entry, std::string name_body,
     add_control_edge(name_end, name_entry);
 }
 
+void ControlFlow::init_entry_block(std::string name, std::ostream &out) {
+    auto block_info = BasicBlockInfo();
+    cfg[name] = block_info;
+    cur_block = name;
+    out << name << ":" << std::endl;
+}
+
 // switch to target control flow.
 // It doesn't automatically wrap up current control block,
 // but will check if it has ended.
@@ -60,8 +67,10 @@ void ControlFlow::insert_while(std::string name_entry, std::string name_body,
 // Return if switch completes successfully.
 bool ControlFlow::switch_control_flow(std::string name, std::ostream &out) {
     assert(cfg[cur_block].ending != BASIC_BLOCK_ENDING_STATUS_NULL);
-    if (cfg[name].edge_in.size() == 0)
+    if (cfg[name].edge_in.size() == 0) {
+        cfg[name].ending = BASIC_BLOCK_ENDING_STATUS_UNREACHABLE;
         return false;
+    }
     cur_block = name;
     out << name << ":" << std::endl;
     return true;
@@ -88,4 +97,20 @@ void ControlFlow::add_control_edge(std::string dst, std::string src) {
     auto &dst_info = cfg[dst];
     src_info.edge_out.push_back(dst);
     dst_info.edge_in.push_back(src);
+}
+
+void ControlFlow::_break(std::ostream &out) {
+    auto dst_break = cfg[cur_block].dst_break;
+    assert(dst_break != "");
+    out << "  jump " << dst_break << std::endl;
+    modify_ending_status(BASIC_BLOCK_ENDING_STATUS_BREAK);
+    add_control_edge(dst_break);
+}
+
+void ControlFlow::_continue(std::ostream &out) {
+    auto dst_continue = cfg[cur_block].dst_continue;
+    assert(dst_continue != "");
+    out << "  jump " << dst_continue << std::endl;
+    modify_ending_status(BASIC_BLOCK_ENDING_STATUS_CONTINUE);
+    add_control_edge(dst_continue);
 }
