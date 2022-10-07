@@ -4,21 +4,21 @@
 #include <cstring>
 #include <iostream>
 #include <map>
+#include <set>
 #include <stack>
 #include <utility>
 #include <vector>
-#include <set>
 
 class SymbolTableEntry {
    public:
     bool is_const;
     int val;
-    int alias; // suffix to differ local vars, added automatically
+    int alias;           // suffix to differ local vars, added automatically
     bool is_func_param;  // use % instead of @
 };
 
 class FuncSymbolTableEntry {
-    public:
+   public:
     std::string func_type;
 };
 
@@ -37,9 +37,9 @@ class SymbolTable {
     void insert_entry(std::string name, SymbolTableEntry entry);
     int get_entry_val(std::string name);
     void write_entry_val(std::string name, int val);
-    void push_block(bool by_func_def=false);
+    void push_block(bool by_func_def = false);
     void pop_block();
-    std::string get_aliased_name(std::string name, bool with_prefix=true);
+    std::string get_aliased_name(std::string name, bool with_prefix = true);
     void insert_func_entry(std::string name, FuncSymbolTableEntry entry);
     std::string get_func_entry_type(std::string name);
     bool is_global_table();
@@ -58,15 +58,21 @@ typedef enum {
 class BasicBlockInfo {
    public:
     basic_block_ending_status_t ending;
-    std::string dst_break;
-    std::string dst_continue;
+    std::string dst_jump;      // default fall-through target
+    std::string dst_break;     // break target
+    std::string dst_continue;  // continue target
     std::vector<std::string> edge_in;
     std::vector<std::string> edge_out;
 
-    BasicBlockInfo()
+    BasicBlockInfo() : ending(BASIC_BLOCK_ENDING_STATUS_NULL) {}
+    BasicBlockInfo(std::string dst_jump)
+        : ending(BASIC_BLOCK_ENDING_STATUS_NULL), dst_jump(dst_jump) {}
+    BasicBlockInfo(std::string dst_jump, std::string dst_break,
+                   std::string dst_continue)
         : ending(BASIC_BLOCK_ENDING_STATUS_NULL),
-          dst_break(""),
-          dst_continue("") {}
+          dst_jump(dst_jump),
+          dst_break(dst_break),
+          dst_continue(dst_continue) {}
 };
 
 class ControlFlow {
@@ -76,14 +82,17 @@ class ControlFlow {
    public:
     std::string cur_block = "";
 
-    void insert_info(std::string name, BasicBlockInfo info);
-    basic_block_ending_status_t check_ending_status(std::string name = "");
-    std::string get_dst_break(std::string name = "");
-    std::string get_dst_continue(std::string name = "");
-    void modify_ending_status(basic_block_ending_status_t status,
-                              std::string name = "");
+    void insert_if(std::string name_then, std::string name_end);
+    void insert_if_else(std::string name_then, std::string name_else,
+                        std::string name_end);
+    void insert_while(std::string name_entry, std::string name_body,
+                      std::string name_end);
+
+    bool switch_control_flow(std::string name, std::ostream &out);
+    
+    basic_block_ending_status_t check_ending_status();
+    void modify_ending_status(basic_block_ending_status_t status);
     void add_control_edge(std::string dst, std::string src = "");
-    bool is_reachable(std::string name = "");
 };
 
 // Save information when generating koopa IR
