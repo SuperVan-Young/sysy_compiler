@@ -57,7 +57,7 @@ using namespace std;
                 Stmt MatchedStmt OpenStmt
                 LVal
                 ConstExp Exp LOrExp LAndExp EqExp RelExp AddExp MulExp UnaryExp PrimaryExp
-%type <str_val> FuncType
+%type <str_val>
                 BType
                 UnaryOp MulOp AddOp RelOp EqOp
 %type <int_val> Number
@@ -173,10 +173,10 @@ ConstInitVal
   ;
 
 VarDecl
-  : BType VarDef OptionalVarDef ';' {
+  : INT VarDef OptionalVarDef ';' {
     auto ast = new DeclAST();
     ast->is_const = false;
-    ast->btype = *unique_ptr<std::string>($1);
+    ast->btype = "int";
     ast->defs.push_back(unique_ptr<BaseAST>($2));
     DeclDefAST* cur = (DeclDefAST*)$3;
     DeclDefAST* tmp;
@@ -227,16 +227,23 @@ InitVal
   ;
 
 FuncDef
-  : FuncType IDENT '(' ')' Block {
+  : INT IDENT '(' ')' Block {
     auto ast = new FuncDefAST();
-    ast->func_type = *unique_ptr<string>($1);
+    ast->func_type = "int";
     ast->ident = *unique_ptr<string>($2);
     ast->block = unique_ptr<BaseAST>($5);
     $$ = ast;
   }
-  | FuncType IDENT '(' FuncFParams ')' Block {
+  | VOID IDENT '(' ')' Block {
     auto ast = new FuncDefAST();
-    ast->func_type = *unique_ptr<string>($1);
+    ast->func_type = "void";
+    ast->ident = *unique_ptr<string>($2);
+    ast->block = unique_ptr<BaseAST>($5);
+    $$ = ast;
+  }
+  | INT IDENT '(' FuncFParams ')' Block {
+    auto ast = new FuncDefAST();
+    ast->func_type = "int";
     ast->ident = *unique_ptr<string>($2);
     ast->block = unique_ptr<BaseAST>($6);
     FuncFParamAST* cur = (FuncFParamAST*)$4;
@@ -249,14 +256,20 @@ FuncDef
     }
     $$ = ast;
   }
-  ;
-
-FuncType
-  : VOID {
-    $$ = new std::string("void");
-  }
-  | INT {
-    $$ = new std::string("int");
+  | VOID IDENT '(' FuncFParams ')' Block {
+    auto ast = new FuncDefAST();
+    ast->func_type = "void";
+    ast->ident = *unique_ptr<string>($2);
+    ast->block = unique_ptr<BaseAST>($6);
+    FuncFParamAST* cur = (FuncFParamAST*)$4;
+    FuncFParamAST* tmp;
+    while (cur != nullptr) {
+      tmp = cur->next;
+      ast->params.push_back(unique_ptr<BaseAST>((BaseAST*)cur));
+      cur->next = nullptr;
+      cur = tmp;
+    }
+    $$ = ast;
   }
   ;
 
