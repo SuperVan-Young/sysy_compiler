@@ -2,6 +2,7 @@
 
 // check if exp's operand is named or temp symbol
 bool is_symbol(std::string operand) {
+    assert(operand != "INVALID");
     auto c = operand[0];
     return c == '%' || c == '@';
 }
@@ -341,28 +342,109 @@ void ExpAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
     return;  // needless to operate on stack
 }
 
-void BinaryExpAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
+void BinaryExpAST::dump_koopa_land_lor(IRGenerator &irgen,
+                                   std::ostream &out) const {
+    assert(op == "&&" || op == "||");
+
+    // dump lhs first
     l_exp->dump_koopa(irgen, out);
     auto l_val = irgen.stack_val.top();
     irgen.stack_val.pop();
 
-    // Optimization: short circult r_exp
     if (!is_symbol(l_val)) {
         auto lhs = std::stoi(l_val);
-        if (lhs == 0) {
-            if (op == "&&") {
+        if (op == "&&" && lhs == 0) {
+            irgen.stack_val.push("0");
+            return;
+        }
+        if (op == "||" && lhs != 0) {
+            irgen.stack_val.push("1");
+            return;
+        }
+
+        // Knowing that lhs is const we directly dump rhs
+        r_exp->dump_koopa(irgen, out);
+        auto r_val = irgen.stack_val.top();
+        irgen.stack_val.pop();
+
+        if (!is_symbol(r_val)) {
+            auto rhs = std::stoi(r_val);
+            if (rhs == 0) {
                 irgen.stack_val.push("0");
                 return;
-            }
-        } else {
-            if (op == "||") {
+            } else {
                 irgen.stack_val.push("1");
                 return;
             }
+
+        } else {
+            // rhs is variable, we check if it's non-zero
+            auto lr_val = irgen.new_val();
+            out << "  " << lr_val << " = ne " << r_val << ", 0" << std::endl;
+            irgen.stack_val.push(lr_val);  // needless to &&
+            return;
         }
+
+    } else {
+        // not a symbol. prepare return val first
+        // &&: exp_val = l_val ? r_val != 0 : 0;
+        // ||: exp_val = l_val ? 1 : r_val != 0;
+        auto exp_val = irgen.new_val();
+        out << "  " << exp_val << "= alloc i32" << std::endl;
+        if (op == "&&")
+            out << "  store " << 0 << ", " << exp_val << std::endl;
+        else
+            out << "  store " << 1 << ", " << exp_val << std::endl;
+
+        // similar to if-then-end stmt
+        auto then_block_name = irgen.new_block();
+        auto end_block_name = irgen.new_block();
+
+        // finish current block
+        irgen.control_flow.modify_ending_status(
+            BASIC_BLOCK_ENDING_STATUS_BRANCH);
+        if (op == "&&")
+            out << "  br " << l_val << ", " << then_block_name << ", "
+                << end_block_name << std::endl;
+        else
+            out << "  br " << l_val << ", " << end_block_name << ", "
+                << then_block_name << std::endl;
+
+        irgen.control_flow.insert_if(then_block_name, end_block_name);
+        assert(irgen.control_flow.switch_control_flow(then_block_name, out));
+
+        r_exp->dump_koopa(irgen, out);
+        auto r_val = irgen.stack_val.top();
+        irgen.stack_val.pop();
+
+        auto lr_val = irgen.new_val();
+        out << "  " << lr_val << " = ne " << r_val << ", 0" << std::endl;
+        out << "  store " << lr_val << ", " << exp_val << std::endl;
+
+        assert(irgen.control_flow.check_ending_status() == BASIC_BLOCK_ENDING_STATUS_NULL);
+        out << "  jump " << end_block_name << std::endl;
+        irgen.control_flow.modify_ending_status(BASIC_BLOCK_ENDING_STATUS_JUMP);
+        irgen.control_flow.add_control_edge(end_block_name);
+
+        assert(irgen.control_flow.switch_control_flow(end_block_name, out));
+
+        // load to register
+        auto ret_val = irgen.new_val();
+        out << "  " << ret_val << " = load " << exp_val << std::endl;
+        irgen.stack_val.push(ret_val);
+        return;
     }
-    // shouldn't shortcut l_exp given a const r_exp
-    // since l_exp could have side effect
+}
+
+void BinaryExpAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
+    if (op == "&&" || op == "||") {
+        dump_koopa_land_lor(irgen, out);
+        return;
+    }
+
+    l_exp->dump_koopa(irgen, out);
+    auto l_val = irgen.stack_val.top();
+    irgen.stack_val.pop();
 
     r_exp->dump_koopa(irgen, out);
     auto r_val = irgen.stack_val.top();
@@ -395,10 +477,6 @@ void BinaryExpAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
             ret = lhs == rhs;
         else if (op == "!=")
             ret = lhs != rhs;
-        else if (op == "&&")
-            ret = lhs && rhs;
-        else if (op == "||")
-            ret = lhs || rhs;
         else {
             std::cerr << "Invalid op: " << op << std::endl;
             assert(false);
@@ -408,15 +486,6 @@ void BinaryExpAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
     }
 
     // dump exp w.r.t. op
-    if (op == "&&" || op == "||") {
-        // convert both value into logical values
-        auto ll_val = irgen.new_val();
-        auto lr_val = irgen.new_val();
-        out << "  " << ll_val << " = ne " << l_val << ", 0" << std::endl;
-        out << "  " << lr_val << " = ne " << r_val << ", 0" << std::endl;
-        l_val = ll_val;
-        r_val = lr_val;
-    }
     auto exp_val = irgen.new_val();
     out << "  " << exp_val << " = ";
     if (op == "+")
@@ -441,10 +510,6 @@ void BinaryExpAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
         out << "eq ";
     } else if (op == "!=") {
         out << "ne ";
-    } else if (op == "&&") {
-        out << "and ";
-    } else if (op == "||") {
-        out << "or ";
     } else {
         std::cerr << "Invalid op: " << op << std::endl;
         assert(false);

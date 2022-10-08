@@ -196,6 +196,7 @@ class BinaryExpAST : public CalcAST {
     std::unique_ptr<BaseAST> r_exp;
 
     void dump_koopa(IRGenerator &irgen, std::ostream &out) const override;
+    void dump_koopa_land_lor(IRGenerator &irgen, std::ostream &out) const;
     bool calc_val(IRGenerator &irgen, int &result,
                   bool calc_const) const override;
 };

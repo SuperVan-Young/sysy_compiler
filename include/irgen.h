@@ -12,7 +12,8 @@
 class SymbolTableEntry {
    public:
     bool is_const;
-    int val;
+    int val;             // value of CONST
+                         // var has init value, but who knows how it changes?
     int alias;           // suffix to differ local vars, added automatically
     bool is_func_param;  // use % instead of @
 };
