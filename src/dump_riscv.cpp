@@ -16,10 +16,52 @@ TargetCodeGenerator::~TargetCodeGenerator() {
 }
 
 int TargetCodeGenerator::dump_riscv() {
-    out << "  .text" << std::endl;
-    out << "  .globl main" << std::endl;
-    int ret = dump_koopa_raw_slice(raw.funcs);
+    int ret;
+    ret = dump_koopa_raw_slice(raw.values);
+    ret = dump_koopa_raw_slice(raw.funcs);
     return ret;
+}
+
+// some useful debugging function
+std::string to_koopa_raw_value_tag(koopa_raw_value_tag_t tag) {
+    switch (tag) {
+        case KOOPA_RVT_INTEGER:
+            return "KOOPA_RVT_INTEGER";
+        case KOOPA_RVT_ZERO_INIT:
+            return "KOOPA_RVT_ZERO_INIT";
+        case KOOPA_RVT_UNDEF:
+            return "KOOPA_RVT_UNDEF";
+        case KOOPA_RVT_AGGREGATE:
+            return "KOOPA_RVT_AGGREGATE";
+        case KOOPA_RVT_FUNC_ARG_REF:
+            return "KOOPA_RVT_FUNC_ARG_REF";
+        case KOOPA_RVT_BLOCK_ARG_REF:
+            return "KOOPA_RVT_BLOCK_ARG_REF";
+        case KOOPA_RVT_ALLOC:
+            return "KOOPA_RVT_ALLOC";
+        case KOOPA_RVT_GLOBAL_ALLOC:
+            return "KOOPA_RVT_GLOBAL_ALLOC";
+        case KOOPA_RVT_LOAD:
+            return "KOOPA_RVT_LOAD";
+        case KOOPA_RVT_STORE:
+            return "KOOPA_RVT_STORE";
+        case KOOPA_RVT_GET_PTR:
+            return "KOOPA_RVT_GET_PTR";
+        case KOOPA_RVT_GET_ELEM_PTR:
+            return "KOOPA_RVT_GET_ELEM_PTR";
+        case KOOPA_RVT_BINARY:
+            return "KOOPA_RVT_BINARY";
+        case KOOPA_RVT_BRANCH:
+            return "KOOPA_RVT_BRANCH";
+        case KOOPA_RVT_JUMP:
+            return "KOOPA_RVT_JUMP";
+        case KOOPA_RVT_CALL:
+            return "KOOPA_RVT_CALL";
+        case KOOPA_RVT_RETURN:
+            return "KOOPA_RVT_RETURN";
+        default:
+            return "INVALID KOOPA RVT TAG!";
+    }
 }
 
 // dump riscv inst
@@ -89,11 +131,21 @@ int TargetCodeGenerator::dump_koopa_raw_slice(koopa_raw_slice_t slice) {
 }
 
 int TargetCodeGenerator::dump_koopa_raw_function(koopa_raw_function_t func) {
+    if (func->bbs.len == 0) {
+        return 0;  // func decl, should be ignored
+    }
+
+    // function statement
+
     // function name, ignore first character
+    out << "  .text" << std::endl;
+    out << "  .globl " << func->name + 1 << std::endl;
     out << func->name + 1 << ":" << std::endl;
 
     runtime_stack.push(StackFrame(func));
-    // prologue insts
+
+    // prologue
+    // set up stack frame
     int frame_length = runtime_stack.top().get_length();
     if (frame_length <= 2048)
         dump_riscv_inst("addi", "sp", "sp", std::to_string(-frame_length));
@@ -102,22 +154,16 @@ int TargetCodeGenerator::dump_koopa_raw_function(koopa_raw_function_t func) {
         dump_riscv_inst("add", "sp", "sp", "t0");
         // length will never be used, so everyone can use t0 later
     }
+    // save callee registers
+    for (auto &it: runtime_stack.top().saved_registers) {
+        auto reg = it.first;
+        auto offset = it.second.offset;
+        dump_sw(reg, offset);
+    }
 
     int ret = dump_koopa_raw_slice(func->bbs);
-
-    // for function without a return inst, we add a default one.
-    if (!runtime_stack.top().is_returned) {
-        // epilogue insts
-        if (frame_length <= 2048)
-            dump_riscv_inst("addi", "sp", "sp", std::to_string(frame_length));
-        else {
-            dump_riscv_inst("li", "t0", std::to_string(frame_length));
-            dump_riscv_inst("add", "sp", "sp", "t0");
-        }
-        runtime_stack.top().is_returned = true;
-        dump_riscv_inst("ret");
-    }
     runtime_stack.pop();
+    out << std::endl;
 
     return ret;
 }
@@ -145,9 +191,11 @@ int TargetCodeGenerator::dump_koopa_raw_value(koopa_raw_value_t value) {
         return dump_koopa_raw_value_branch(value);
     else if (tag == KOOPA_RVT_JUMP)
         return dump_koopa_raw_value_jump(value);
+    else if (tag == KOOPA_RVT_CALL)
+        return dump_koopa_raw_value_call(value);
     else {
-        std::cerr << "Raw value type " << tag << " not implemented."
-                  << std::endl;
+        std::cerr << "Raw value type " << to_koopa_raw_value_tag(tag)
+                  << " not implemented." << std::endl;
         return -1;
     }
 }
@@ -279,7 +327,8 @@ int TargetCodeGenerator::dump_koopa_raw_value_store(koopa_raw_value_t value) {
         auto offset = runtime_stack.top().get_offset(src);
         dump_lw("t0", offset);
     } else {
-        std::cerr << "STORE src type: " << src->kind.tag << std::endl;
+        auto tag = to_koopa_raw_value_tag(src->kind.tag);
+        std::cerr << "STORE src type: " << tag << std::endl;
         assert(false);
     }
     auto dst = value->kind.data.store.dest;
@@ -300,12 +349,24 @@ int TargetCodeGenerator::dump_koopa_raw_value_return(koopa_raw_value_t value) {
     } else if (ret_val->kind.tag == KOOPA_RVT_LOAD) {
         auto offset = runtime_stack.top().get_offset(ret_val);
         dump_lw("a0", offset);
+    } else if (ret_val->kind.tag == KOOPA_RVT_CALL) {
+        auto offset = runtime_stack.top().get_offset(ret_val);
+        dump_lw("a0", offset);
     } else {
-        std::cerr << "RETURN val type: " << ret_val->kind.tag << std::endl;
+        auto tag = to_koopa_raw_value_tag(ret_val->kind.tag);
+        std::cerr << "RETURN val type: " << tag << std::endl;
         assert(false);
     }
 
     // epilogue
+    // recover registers
+    for (auto &it: runtime_stack.top().saved_registers) {
+        auto reg = it.first;
+        auto offset = it.second.offset;
+        dump_lw(reg, offset);
+    }
+
+    // pop stack frame
     auto frame_length = runtime_stack.top().get_length();
     if (frame_length <= 2048)
         dump_riscv_inst("addi", "sp", "sp", std::to_string(frame_length));
@@ -314,7 +375,6 @@ int TargetCodeGenerator::dump_koopa_raw_value_return(koopa_raw_value_t value) {
         dump_riscv_inst("add", "sp", "sp", "t0");
     }
     dump_riscv_inst("ret");
-    runtime_stack.top().is_returned = true;
     return 0;
 }
 
@@ -344,6 +404,32 @@ int TargetCodeGenerator::dump_koopa_raw_value_branch(koopa_raw_value_t value) {
 int TargetCodeGenerator::dump_koopa_raw_value_jump(koopa_raw_value_t value) {
     auto bb_name = value->kind.data.jump.target->name + 1;
     dump_riscv_inst("j", bb_name);
+
+    return 0;
+}
+
+int TargetCodeGenerator::dump_koopa_raw_value_call(koopa_raw_value_t value) {
+    auto args = value->kind.data.call.args;
+
+    // load args to register and caller's stack frame
+    assert(args.kind == KOOPA_RSIK_VALUE);
+    for (int i = 0; i < args.len; i++) {
+        koopa_raw_value_t val = (koopa_raw_value_t)args.buffer[i];
+        if (i < 8) {
+            auto reg = "a" + std::to_string(i);
+            auto offset = runtime_stack.top().get_offset(val);
+            dump_lw(reg, offset);
+        } else {
+            auto reg = "t5";  // nobody use it for now
+            auto offset = runtime_stack.top().get_offset(val);
+            dump_lw(reg, offset);
+            dump_sw(reg, (i - 8) * 4);
+        }
+    }
+    auto callee_name = value->kind.data.call.callee->name;
+    dump_riscv_inst("call", callee_name + 1);
+    auto offset = runtime_stack.top().get_offset(value);
+    dump_sw("a0", offset);
 
     return 0;
 }

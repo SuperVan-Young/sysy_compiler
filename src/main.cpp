@@ -49,6 +49,7 @@ int main(int argc, const char *argv[]) {
         assert(!ret);
         out.close();
     }
+    std::cerr << "Dumping Finished!" << std::endl;
 
     return 0;
 }

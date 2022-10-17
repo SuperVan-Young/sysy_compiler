@@ -10,6 +10,8 @@
 
 #include "koopa.h"
 
+class TargetCodeGenerator;
+
 class RegisterInfo {
    public:
     koopa_raw_value_t val;
@@ -79,7 +81,7 @@ class StackFrame {
     StackFrame(koopa_raw_function_t func);
     int get_offset(koopa_raw_value_t val);
     int get_length() { return length; }
-    void recover_registers();
+    friend TargetCodeGenerator;
 };
 
 class TargetCodeGenerator {
@@ -107,10 +109,11 @@ class TargetCodeGenerator {
     int dump_koopa_raw_basic_block(koopa_raw_basic_block_t bb);
     int dump_koopa_raw_value(koopa_raw_value_t value);
 
-    int dump_koopa_raw_value_binary(koopa_raw_value_t value);
     int dump_koopa_raw_value_load(koopa_raw_value_t value);
     int dump_koopa_raw_value_store(koopa_raw_value_t value);
-    int dump_koopa_raw_value_return(koopa_raw_value_t value);
+    int dump_koopa_raw_value_binary(koopa_raw_value_t value);
     int dump_koopa_raw_value_branch(koopa_raw_value_t value);
     int dump_koopa_raw_value_jump(koopa_raw_value_t value);
+    int dump_koopa_raw_value_call(koopa_raw_value_t value);
+    int dump_koopa_raw_value_return(koopa_raw_value_t value);
 };

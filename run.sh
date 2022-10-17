@@ -1,1 +1,1 @@
-docker run -it --rm -v $(pwd):/root/compiler maxxing/compiler-dev bash
+docker run --cap-add=SYS_PTRACE --security-opt seccomp=unconfined -it --rm -v $(pwd):/root/compiler maxxing/compiler-dev bash

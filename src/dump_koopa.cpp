@@ -17,6 +17,7 @@ void StartAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
     out << "decl @putarray(i32, *i32)" << std::endl;
     out << "decl @starttime()" << std::endl;
     out << "decl @stoptime()" << std::endl;
+    out << std::endl;
 
     // add these functions to global symbol table
     FuncSymbolTableEntry int_entry;
