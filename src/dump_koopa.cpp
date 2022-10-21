@@ -232,7 +232,7 @@ void StmtAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
             irgen.stack_val.pop();
             out << "  ret " << ret_val << std::endl;
         } else {
-            out << "  ret 114514" << std::endl;  // return random const
+            out << "  ret" << std::endl;
         }
         irgen.control_flow.modify_ending_status(
             BASIC_BLOCK_ENDING_STATUS_RETURN);  // block should return

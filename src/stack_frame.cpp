@@ -42,7 +42,6 @@ StackFrame::StackFrame(koopa_raw_function_t func) {
     // save registers
     saved_registers.insert(std::make_pair("ra", StackInfo(length + 0)));
     saved_registers.insert(std::make_pair("sp", StackInfo(length + 4)));
-    length += 8;
 
     // length align to 16
     length += saved_registers.size() * 4;

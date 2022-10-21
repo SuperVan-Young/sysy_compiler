@@ -340,22 +340,24 @@ int TargetCodeGenerator::dump_koopa_raw_value_store(koopa_raw_value_t value) {
 int TargetCodeGenerator::dump_koopa_raw_value_return(koopa_raw_value_t value) {
     // move operand to a0
     auto ret_val = value->kind.data.ret.value;
-    if (ret_val->kind.tag == KOOPA_RVT_BINARY) {
-        auto offset = runtime_stack.top().get_offset(ret_val);
-        dump_lw("a0", offset);
-    } else if (ret_val->kind.tag == KOOPA_RVT_INTEGER) {
-        auto ret = std::to_string(ret_val->kind.data.integer.value);
-        dump_riscv_inst("li", "a0", ret);
-    } else if (ret_val->kind.tag == KOOPA_RVT_LOAD) {
-        auto offset = runtime_stack.top().get_offset(ret_val);
-        dump_lw("a0", offset);
-    } else if (ret_val->kind.tag == KOOPA_RVT_CALL) {
-        auto offset = runtime_stack.top().get_offset(ret_val);
-        dump_lw("a0", offset);
-    } else {
-        auto tag = to_koopa_raw_value_tag(ret_val->kind.tag);
-        std::cerr << "RETURN val type: " << tag << std::endl;
-        assert(false);
+    if (ret_val != nullptr) {
+        if (ret_val->kind.tag == KOOPA_RVT_BINARY) {
+            auto offset = runtime_stack.top().get_offset(ret_val);
+            dump_lw("a0", offset);
+        } else if (ret_val->kind.tag == KOOPA_RVT_INTEGER) {
+            auto ret = std::to_string(ret_val->kind.data.integer.value);
+            dump_riscv_inst("li", "a0", ret);
+        } else if (ret_val->kind.tag == KOOPA_RVT_LOAD) {
+            auto offset = runtime_stack.top().get_offset(ret_val);
+            dump_lw("a0", offset);
+        } else if (ret_val->kind.tag == KOOPA_RVT_CALL) {
+            auto offset = runtime_stack.top().get_offset(ret_val);
+            dump_lw("a0", offset);
+        } else {
+            auto tag = to_koopa_raw_value_tag(ret_val->kind.tag);
+            std::cerr << "RETURN val type: " << tag << std::endl;
+            assert(false);
+        }
     }
 
     // epilogue
