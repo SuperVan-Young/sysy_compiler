@@ -247,8 +247,14 @@ int TargetCodeGenerator::dump_koopa_raw_value_binary(koopa_raw_value_t value) {
         auto offset = runtime_stack.top().get_offset(lhs_val);
         dump_lw("t1", offset);
         lhs = "t1";
-    } else {
-        std::cerr << "BINARY val type: " << lhs_val->kind.tag << std::endl;
+    } else if (lhs_val->kind.tag == KOOPA_RVT_CALL) {
+        auto offset = runtime_stack.top().get_offset(lhs_val);
+        dump_lw("t1", offset);
+        lhs = "t1";
+    }
+    else {
+        auto tag = to_koopa_raw_value_tag(lhs_val->kind.tag);
+        std::cerr << "BINARY val type: " << tag << std::endl;
         assert(false);
     }
 
@@ -269,7 +275,12 @@ int TargetCodeGenerator::dump_koopa_raw_value_binary(koopa_raw_value_t value) {
         auto offset = runtime_stack.top().get_offset(rhs_val);
         dump_lw("t2", offset);
         rhs = "t2";
-    } else {
+    } else if (rhs_val->kind.tag == KOOPA_RVT_CALL) {
+        auto offset = runtime_stack.top().get_offset(rhs_val);
+        dump_lw("t2", offset);
+        rhs = "t2";
+    } 
+    else {
         std::cerr << "BINARY val type: " << rhs_val->kind.tag << std::endl;
         assert(false);
     }
