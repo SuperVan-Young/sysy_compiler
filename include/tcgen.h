@@ -110,6 +110,7 @@ class TargetCodeGenerator {
     int dump_koopa_raw_basic_block(koopa_raw_basic_block_t bb);
     int dump_koopa_raw_value(koopa_raw_value_t value);
 
+    int dump_koopa_raw_value_global_alloc(koopa_raw_value_t value);
     int dump_koopa_raw_value_load(koopa_raw_value_t value);
     int dump_koopa_raw_value_store(koopa_raw_value_t value);
     int dump_koopa_raw_value_binary(koopa_raw_value_t value);

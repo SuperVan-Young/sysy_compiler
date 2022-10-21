@@ -210,6 +210,8 @@ int TargetCodeGenerator::dump_koopa_raw_value(koopa_raw_value_t value) {
         return dump_koopa_raw_value_return(value);
     else if (tag == KOOPA_RVT_ALLOC)
         return 0;  // needless to dump
+    else if (tag == KOOPA_RVT_GLOBAL_ALLOC)
+        return dump_koopa_raw_value_global_alloc(value);
     else if (tag == KOOPA_RVT_LOAD)
         return dump_koopa_raw_value_load(value);
     else if (tag == KOOPA_RVT_STORE)
@@ -226,6 +228,8 @@ int TargetCodeGenerator::dump_koopa_raw_value(koopa_raw_value_t value) {
         return -1;
     }
 }
+
+// dump koopa raw value
 
 int TargetCodeGenerator::dump_koopa_raw_value_binary(koopa_raw_value_t value) {
     auto op = value->kind.data.binary.op;
@@ -509,5 +513,26 @@ int TargetCodeGenerator::dump_koopa_raw_value_call(koopa_raw_value_t value) {
         assert(false);
     }
 
+    return 0;
+}
+
+int TargetCodeGenerator::dump_koopa_raw_value_global_alloc(koopa_raw_value_t value) {
+    out << "  .data" << std::endl;
+    out << "  .globl " << value->name + 1 << std::endl;
+    out << value->name + 1 << ":" << std::endl;
+
+    auto init = value->kind.data.global_alloc.init;
+    auto init_type = init->kind.tag;
+    if (init_type == KOOPA_RVT_ZERO_INIT) {
+        out << "  .zero 4" << std::endl;
+    } else if (init_type == KOOPA_RVT_INTEGER) {
+        out << "  .word " << init->kind.data.integer.value << std::endl;
+    } else {
+        auto tag = to_koopa_raw_value_tag(init_type);
+        std::cerr << "Global alloc: unknown tag " << tag << std::endl;
+        assert(false);
+    }
+
+    out << std::endl;
     return 0;
 }
