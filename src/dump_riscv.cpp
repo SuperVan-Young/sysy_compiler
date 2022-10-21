@@ -364,7 +364,12 @@ int TargetCodeGenerator::dump_koopa_raw_value_store(koopa_raw_value_t value) {
             int offset = (index - 8) * 4;
             dump_lw("t0", offset, "s0");
         }
-    } else {
+    } else if (src->kind.tag == KOOPA_RVT_CALL) {
+        // func call inst should put result back on stack
+        auto offset = runtime_stack.top().get_offset(src);
+        dump_lw("t0", offset);
+    } 
+    else {
         auto tag = to_koopa_raw_value_tag(src->kind.tag);
         std::cerr << "STORE src type: " << tag << std::endl;
         assert(false);

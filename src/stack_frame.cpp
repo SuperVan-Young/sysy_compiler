@@ -14,9 +14,9 @@ StackFrame::StackFrame(koopa_raw_function_t func) {
 
         for (size_t j = 0; j < val_slice.len; j++) {
             auto val = (koopa_raw_value_t)val_slice.buffer[j];
-            if (val->ty->tag != KOOPA_RTT_FUNCTION) continue;
+            if (val->kind.tag != KOOPA_RVT_CALL) continue;
             
-            auto param_len = int(val->ty->data.function.params.len);
+            auto param_len = int(val->kind.data.call.args.len);
             length = std::max(4 * (param_len - 8), length);
             is_leaf_function = false;
         }
