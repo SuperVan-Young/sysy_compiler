@@ -391,7 +391,7 @@ void BinaryExpAST::dump_koopa_land_lor(IRGenerator &irgen,
         // &&: exp_val = l_val ? r_val != 0 : 0;
         // ||: exp_val = l_val ? 1 : r_val != 0;
         auto exp_val = irgen.new_val();
-        out << "  " << exp_val << "= alloc i32" << std::endl;
+        out << "  " << exp_val << " = alloc i32" << std::endl;
         if (op == "&&")
             out << "  store " << 0 << ", " << exp_val << std::endl;
         else
@@ -406,10 +406,10 @@ void BinaryExpAST::dump_koopa_land_lor(IRGenerator &irgen,
             BASIC_BLOCK_ENDING_STATUS_BRANCH);
         if (op == "&&")
             out << "  br " << l_val << ", " << then_block_name << ", "
-                << end_block_name << std::endl;
+                << end_block_name << std::endl;  // l != 0 ? r : 0;
         else
             out << "  br " << l_val << ", " << end_block_name << ", "
-                << then_block_name << std::endl;
+                << then_block_name << std::endl;  // l != 0 ? 1 : r;
 
         irgen.control_flow.insert_if(then_block_name, end_block_name);
         assert(irgen.control_flow.switch_control_flow(then_block_name, out));

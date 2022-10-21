@@ -472,6 +472,13 @@ int TargetCodeGenerator::dump_koopa_raw_value_branch(koopa_raw_value_t value) {
     } else if (cond->kind.tag == KOOPA_RVT_LOAD) {
         auto offset = runtime_stack.top().get_offset(cond);
         dump_lw(reg, offset);
+    } else if (cond->kind.tag == KOOPA_RVT_CALL) {
+        auto offset = runtime_stack.top().get_offset(cond);
+        dump_lw(reg, offset);
+    } else {
+        auto tag = to_koopa_raw_value_tag(cond->kind.tag);
+        std::cerr << "branch val type: " << tag << std::endl;
+        assert(false);
     }
 
     auto true_bb_name = value->kind.data.branch.true_bb->name + 1;
