@@ -41,7 +41,7 @@ StackFrame::StackFrame(koopa_raw_function_t func) {
 
     // save registers
     saved_registers.insert(std::make_pair("ra", StackInfo(length + 0)));
-    saved_registers.insert(std::make_pair("sp", StackInfo(length + 4)));
+    saved_registers.insert(std::make_pair("s0", StackInfo(length + 4)));
 
     // length align to 16
     length += saved_registers.size() * 4;
@@ -51,7 +51,17 @@ StackFrame::StackFrame(koopa_raw_function_t func) {
 // Get offset from current sp
 // (Support transforming negative offset)
 int StackFrame::get_offset(koopa_raw_value_t val) {
+    assert(entries.find(val) != entries.end());
     auto info = entries[val];
+    auto offset = info.offset;
+    if (offset < 0)
+        offset = length + offset;
+    return offset;
+}
+
+int StackFrame::get_register_offset(std::string reg) {
+    assert(saved_registers.find(reg) != saved_registers.end());
+    auto info = saved_registers[reg];
     auto offset = info.offset;
     if (offset < 0)
         offset = length + offset;

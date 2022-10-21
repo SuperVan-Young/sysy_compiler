@@ -80,6 +80,7 @@ class StackFrame {
 
     StackFrame(koopa_raw_function_t func);
     int get_offset(koopa_raw_value_t val);
+    int get_register_offset(std::string reg);
     int get_length() { return length; }
     friend TargetCodeGenerator;
 };
@@ -101,7 +102,7 @@ class TargetCodeGenerator {
 
     void dump_riscv_inst(std::string inst, std::string reg_0, std::string reg_1,
                          std::string reg_2);
-    void dump_lw(std::string reg, int offset);
+    void dump_lw(std::string reg, int offset, std::string base);
     void dump_sw(std::string reg, int offset);
 
     int dump_koopa_raw_slice(koopa_raw_slice_t slice);

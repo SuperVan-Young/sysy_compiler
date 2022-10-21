@@ -64,6 +64,23 @@ std::string to_koopa_raw_value_tag(koopa_raw_value_tag_t tag) {
     }
 }
 
+std::string to_koopa_raw_type_tag(koopa_raw_type_tag_t tag) {
+    switch (tag) {
+        case KOOPA_RTT_INT32:
+            return "KOOPA_RTT_INT32";
+        case KOOPA_RTT_UNIT:
+            return "KOOPA_RTT_UNIT";
+        case KOOPA_RTT_ARRAY:
+            return "KOOPA_RTT_ARRAY";
+        case KOOPA_RTT_POINTER:
+            return "KOOPA_RTT_POINTER";
+        case KOOPA_RTT_FUNCTION:
+            return "KOOPA_RTT_FUNCTION";
+        default:
+            return "INVALID KOOPA RTT TAG!";
+    }
+}
+
 // dump riscv inst
 
 void TargetCodeGenerator::dump_riscv_inst(std::string inst,
@@ -88,13 +105,15 @@ void TargetCodeGenerator::dump_riscv_inst(std::string inst,
     }
 }
 
-void TargetCodeGenerator::dump_lw(std::string reg, int offset) {
+void TargetCodeGenerator::dump_lw(std::string reg, int offset,
+                                  std::string base = "sp") {
     if (offset <= 2047 && offset >= -2048) {
-        dump_riscv_inst("lw", reg, std::to_string(offset) + "(sp)");
+        dump_riscv_inst("lw", reg, std::to_string(offset) + "(" + base + ")");
     } else {
         // take an empty register for offset
         // TODO: before considering register allocation, we use t6
         dump_riscv_inst("li", "t6", std::to_string(offset));
+        dump_riscv_inst("add", "t6", "t6", "sp");
         dump_riscv_inst("lw", reg, "0(t6)");
     }
 }
@@ -106,6 +125,7 @@ void TargetCodeGenerator::dump_sw(std::string reg, int offset) {
         // take an empty register for offset
         // TODO: before considering register allocation, we use t6
         dump_riscv_inst("li", "t6", std::to_string(offset));
+        dump_riscv_inst("add", "t6", "t6", "sp");
         dump_riscv_inst("sw", reg, "0(t6)");
     }
 }
@@ -155,10 +175,17 @@ int TargetCodeGenerator::dump_koopa_raw_function(koopa_raw_function_t func) {
         // length will never be used, so everyone can use t0 later
     }
     // save callee registers
-    for (auto &it: runtime_stack.top().saved_registers) {
+    for (auto &it : runtime_stack.top().saved_registers) {
         auto reg = it.first;
         auto offset = it.second.offset;
         dump_sw(reg, offset);
+    }
+    // set up s0  TODO: only > 8 func param need this
+    if (frame_length <= 2048)
+        dump_riscv_inst("addi", "s0", "sp", std::to_string(frame_length));
+    else {
+        dump_riscv_inst("li", "t0", std::to_string(frame_length));
+        dump_riscv_inst("add", "s0", "sp", "t0");
     }
 
     int ret = dump_koopa_raw_slice(func->bbs);
@@ -326,6 +353,17 @@ int TargetCodeGenerator::dump_koopa_raw_value_store(koopa_raw_value_t value) {
     } else if (src->kind.tag == KOOPA_RVT_BINARY) {
         auto offset = runtime_stack.top().get_offset(src);
         dump_lw("t0", offset);
+    } else if (src->kind.tag == KOOPA_RVT_FUNC_ARG_REF) {
+        auto index = src->kind.data.func_arg_ref.index;
+        if (index < 8) {
+            // this, of course, could be optimized
+            std::string reg = "a" + std::to_string(index);
+            dump_riscv_inst("mv", "t0", reg);
+        } else {
+            // prologue should set up s0
+            int offset = (index - 8) * 4;
+            dump_lw("t0", offset, "s0");
+        }
     } else {
         auto tag = to_koopa_raw_value_tag(src->kind.tag);
         std::cerr << "STORE src type: " << tag << std::endl;
@@ -362,7 +400,7 @@ int TargetCodeGenerator::dump_koopa_raw_value_return(koopa_raw_value_t value) {
 
     // epilogue
     // recover registers
-    for (auto &it: runtime_stack.top().saved_registers) {
+    for (auto &it : runtime_stack.top().saved_registers) {
         auto reg = it.first;
         auto offset = it.second.offset;
         dump_lw(reg, offset);
@@ -419,19 +457,41 @@ int TargetCodeGenerator::dump_koopa_raw_value_call(koopa_raw_value_t value) {
         koopa_raw_value_t val = (koopa_raw_value_t)args.buffer[i];
         if (i < 8) {
             auto reg = "a" + std::to_string(i);
-            auto offset = runtime_stack.top().get_offset(val);
-            dump_lw(reg, offset);
+            if (val->kind.tag == KOOPA_RVT_INTEGER) {
+                auto int_val = val->kind.data.integer.value;
+                dump_riscv_inst("li", reg, std::to_string(int_val));
+            } else {
+                // for simplicity, assume it's on the stack
+                auto offset = runtime_stack.top().get_offset(val);
+                dump_lw(reg, offset);
+            }
         } else {
             auto reg = "t5";  // nobody use it for now
-            auto offset = runtime_stack.top().get_offset(val);
-            dump_lw(reg, offset);
+            if (val->kind.tag == KOOPA_RVT_INTEGER) {
+                auto int_val = val->kind.data.integer.value;
+                dump_riscv_inst("li", reg, std::to_string(int_val));
+            } else {
+                // for simplicity, assume it's on the stack
+                auto offset = runtime_stack.top().get_offset(val);
+                dump_lw(reg, offset);
+            }
             dump_sw(reg, (i - 8) * 4);
         }
     }
     auto callee_name = value->kind.data.call.callee->name;
     dump_riscv_inst("call", callee_name + 1);
-    auto offset = runtime_stack.top().get_offset(value);
-    dump_sw("a0", offset);
+
+    // set return value if there is
+    auto ret_type = value->ty->tag;
+    if (ret_type == KOOPA_RTT_INT32) {
+        auto offset = runtime_stack.top().get_offset(value);
+        dump_sw("a0", offset);
+    } else if (ret_type == KOOPA_RTT_UNIT) {
+    } else {
+        auto tag = to_koopa_raw_type_tag(ret_type);
+        std::cerr << "Callee func return type: " << tag << std::endl;
+        assert(false);
+    }
 
     return 0;
 }
