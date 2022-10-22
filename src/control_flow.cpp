@@ -54,7 +54,7 @@ void ControlFlow::insert_while(std::string name_entry, std::string name_body,
 
 void ControlFlow::init_entry_block(std::string name, std::ostream &out) {
     auto block_info = BasicBlockInfo();
-    cfg[name] = block_info;
+    cfg.insert(std::make_pair(name, block_info));
     cur_block = name;
     out << name << ":" << std::endl;
 }

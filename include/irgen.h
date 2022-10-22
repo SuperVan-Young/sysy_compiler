@@ -39,8 +39,8 @@ class SymbolTable {
     std::map<std::string, int> alias_cnt;
 
     int _get_alias(std::string name);
-    bool _get_local_table(symbol_table_block_t &table);
-    bool _get_entry(std::string name, SymbolTableEntry &entry);
+    bool _get_local_table(symbol_table_block_t *&table);
+    bool _get_entry(std::string name, SymbolTableEntry *&entry);
 
    public:
     // insert new entry
@@ -50,6 +50,7 @@ class SymbolTable {
     void insert_array_entry(std::string name, std::vector<int> array_size);
 
     // get entry info
+    bool is_global_var_entry(std::string name);
     bool is_const_var_entry(std::string name);
     int get_const_var_val(std::string name);
     std::string get_var_name(std::string name);
@@ -125,7 +126,6 @@ class IRGenerator {
     IRGenerator() {
         cnt_val = 0;
         cnt_block = 0;
-        symbol_table.push_block();  // global symbol table
     }
     std::stack<std::string> stack_val;  // parse exp
     SymbolTable symbol_table;

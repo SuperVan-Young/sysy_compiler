@@ -89,18 +89,16 @@ bool PrimaryExpAST::calc_val(IRGenerator &irgen, int &result,
 bool LValAST::calc_val(IRGenerator &irgen, int &result, bool calc_const) const {
     // When using this lval, it should have already existed in symbol table,
     // No matter you're assigning a const or var lval.
-    if (!irgen.symbol_table.exist_entry(ident)) assert(false);
-
     if (calc_const) {
         // if this is const calculation, you should only use const symbol,
         // and the symbol's value must have been initialized
-        assert(irgen.symbol_table.is_const_entry(ident));
-        result = irgen.symbol_table.get_entry_val(ident);
+        assert(irgen.symbol_table.is_const_var_entry(ident));
+        result = irgen.symbol_table.get_const_var_val(ident);
         return true;
     } else {
         // otherwise, compiler checks constness and return.
         // For vardef, this provides optimization chance.
-        result = irgen.symbol_table.get_entry_val(ident);
-        return irgen.symbol_table.is_const_entry(ident);
+        result = irgen.symbol_table.get_const_var_val(ident);
+        return irgen.symbol_table.is_const_var_entry(ident);
     }
 }
