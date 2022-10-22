@@ -57,6 +57,7 @@ using namespace std;
                 Stmt MatchedStmt OpenStmt
                 LVal
                 ConstExp Exp LOrExp LAndExp EqExp RelExp AddExp MulExp UnaryExp PrimaryExp
+                OptionalConstExpIndex OptionalExpIndex OptionalConstInitVal OptionalInitVal
 %type <str_val>
                 BType
                 UnaryOp MulOp AddOp RelOp EqOp
@@ -154,20 +155,59 @@ OptionalConstDef
   ;
 
 ConstDef
-  : IDENT '=' ConstInitVal {
+  : IDENT OptionalConstExpIndex '=' ConstInitVal {
     auto ast = new DeclDefAST();
     ast->is_const = true;
     ast->ident = *unique_ptr<std::string>($1);
-    ast->init_val = unique_ptr<BaseAST>($3);
+    ast->init_val = unique_ptr<BaseAST>($4);
+    ExpAST* cur = (ExpAST*)$2;
+    ExpAST* tmp;
+    while (cur != nullptr) {
+      tmp = cur->next;
+      ast->indexes.push_back(unique_ptr<BaseAST>((BaseAST*)cur));
+      cur = tmp;
+    }
     $$ = ast;
+  }
+  ;
+
+OptionalConstInitVal
+  : ',' ConstInitVal OptionalConstInitVal {
+    auto ast = $2;
+    ((InitValAST*)ast)->next = ((InitValAST*)$3);
+    $$ = ast;
+  }
+  | {
+    $$ = nullptr;
   }
   ;
 
 ConstInitVal
   : ConstExp {
     auto ast = new InitValAST();
+    ast->type = INIT_VAL_AST_TYPE_EXP;
     ast->is_const = true;
     ast->exp = unique_ptr<BaseAST>($1);
+    $$ = ast;
+  }
+  | '{' '}' {
+    auto ast = new InitValAST();
+    ast->type = INIT_VAL_AST_TYPE_SUB_VALS;
+    ast->is_const = true;
+    $$ = ast;
+  }
+  | '{' ConstInitVal OptionalConstInitVal '}' {
+    auto ast = new InitValAST();
+    ast->type = INIT_VAL_AST_TYPE_SUB_VALS;
+    ast->is_const = true;
+    ast->init_vals.push_back(unique_ptr<BaseAST>($2));
+    InitValAST* cur = (InitValAST*) $3;
+    InitValAST* tmp;
+    while (cur != nullptr) {
+      tmp = cur->next;
+      ast->init_vals.push_back(unique_ptr<BaseAST>((BaseAST*)cur));
+      cur = tmp;
+    }
     $$ = ast;
   }
   ;
@@ -201,18 +241,32 @@ OptionalVarDef
   ;
 
 VarDef
-  : IDENT {
+  : IDENT OptionalConstExpIndex {
     auto ast = new DeclDefAST();
     ast->is_const = false;
     ast->ident = *unique_ptr<std::string>($1);
     ast->init_val = unique_ptr<BaseAST>(nullptr);
+    ExpAST* cur = (ExpAST*)$2;
+    ExpAST* tmp;
+    while (cur != nullptr) {
+      tmp = cur->next;
+      ast->indexes.push_back(unique_ptr<BaseAST>((BaseAST*)cur));
+      cur = tmp;
+    }
     $$ = ast;
   }
-  | IDENT '=' InitVal {
+  | IDENT OptionalConstExpIndex '=' InitVal {
     auto ast = new DeclDefAST();
     ast->is_const = false;
     ast->ident = *unique_ptr<std::string>($1);
-    ast->init_val = unique_ptr<BaseAST>($3);
+    ast->init_val = unique_ptr<BaseAST>($4);
+    ExpAST* cur = (ExpAST*)$2;
+    ExpAST* tmp;
+    while (cur != nullptr) {
+      tmp = cur->next;
+      ast->indexes.push_back(unique_ptr<BaseAST>((BaseAST*)cur));
+      cur = tmp;
+    }
     $$ = ast;
   }
   ;
@@ -223,6 +277,37 @@ InitVal
     ast->is_const = false;
     ast->exp = unique_ptr<BaseAST>($1);
     $$ = ast;
+  }
+  | '{' '}' {
+    auto ast = new InitValAST();
+    ast->type = INIT_VAL_AST_TYPE_SUB_VALS;
+    ast->is_const = false;
+    $$ = ast;
+  }
+  | '{' InitVal OptionalInitVal '}' {
+    auto ast = new InitValAST();
+    ast->type = INIT_VAL_AST_TYPE_SUB_VALS;
+    ast->is_const = false;
+    ast->init_vals.push_back(unique_ptr<BaseAST>($2));
+    InitValAST* cur = (InitValAST*) $3;
+    InitValAST* tmp;
+    while (cur != nullptr) {
+      tmp = cur->next;
+      ast->init_vals.push_back(unique_ptr<BaseAST>((BaseAST*)cur));
+      cur = tmp;
+    }
+    $$ = ast;
+  }
+  ;
+
+OptionalInitVal
+  : ',' InitVal OptionalInitVal {
+    auto ast = $2;
+    ((InitValAST*)ast)->next = ((InitValAST*)$3);
+    $$ = ast;
+  }
+  | {
+    $$ = nullptr;
   }
   ;
 
@@ -339,9 +424,16 @@ BlockItem
   ;
 
 LVal
-  : IDENT {
+  : IDENT OptionalExpIndex {
     auto ast = new LValAST();
     ast->ident = *unique_ptr<std::string>($1);
+    ExpAST* cur = (ExpAST*)$2;
+    ExpAST* tmp;
+    while (cur != nullptr) {
+      tmp = cur->next;
+      ast->indexes.push_back(unique_ptr<BaseAST>((BaseAST*)cur));
+      cur = tmp;
+    }
     $$ = ast;
   }
 
@@ -607,6 +699,28 @@ PrimaryExp
     ast->type = PRIMARY_EXP_AST_TYPE_LVAL;
     ast->lval = unique_ptr<BaseAST>($1);
     $$ = ast;
+  }
+  ;
+
+OptionalConstExpIndex
+  : '[' ConstExp ']' OptionalConstExpIndex {
+    auto ast = $2;
+    ((ExpAST*)ast)->next = ((ExpAST*)$4);
+    $$ = ast;
+  }
+  | {
+    $$ = nullptr;
+  }
+  ;
+
+OptionalExpIndex
+  : '[' Exp ']' OptionalExpIndex {
+    auto ast = $2;
+    ((ExpAST*)ast)->next = ((ExpAST*)$4);
+    $$ = ast;
+  }
+  | {
+    $$ = nullptr;
   }
   ;
 

@@ -34,7 +34,7 @@ class CompUnitAST : public BaseAST {
     comp_unit_ast_type_t type;
     std::unique_ptr<BaseAST> decl;
     std::unique_ptr<BaseAST> func_def;
-    CompUnitAST* next;
+    CompUnitAST *next;
 
     void dump_koopa(IRGenerator &irgen, std::ostream &out) const override;
 };
@@ -57,19 +57,28 @@ class DeclDefAST : public BaseAST {
    public:
     bool is_const;
     std::string ident;
-    std::unique_ptr<BaseAST> init_val;  // could be null for var
-    DeclDefAST *next;                   // for optional defs
+    std::vector<std::unique_ptr<BaseAST>> indexes;  // optional array indexes
+    std::unique_ptr<BaseAST> init_val;             // could be null for var
+    DeclDefAST *next;                              // for optional defs
 
     void dump_koopa(IRGenerator &irgen, std::ostream &out) const override;
 };
+
+typedef enum {
+    INIT_VAL_AST_TYPE_EXP,
+    INIT_VAL_AST_TYPE_SUB_VALS,
+} init_val_ast_type;
 
 // ConstInitVal  ::= ConstExp
 // InitVal       ::= Exp
 // TODO: This will be expanded for array
 class InitValAST : public BaseAST {
    public:
+    init_val_ast_type type;
     bool is_const;
     std::unique_ptr<BaseAST> exp;
+    std::vector<std::unique_ptr<BaseAST>> init_vals;
+    InitValAST *next;  // only for optional part!
 
     void dump_koopa(IRGenerator &irgen, std::ostream &out) const override {
         assert(false);  // this function shouldn't be called
@@ -177,6 +186,7 @@ class ExpAST : public CalcAST {
    public:
     bool is_const;
     std::unique_ptr<BaseAST> binary_exp;
+    ExpAST *next;  // for array index only!
 
     void dump_koopa(IRGenerator &irgen, std::ostream &out) const override;
     bool calc_val(IRGenerator &irgen, int &result,
@@ -240,6 +250,7 @@ class PrimaryExpAST : public CalcAST {
 class LValAST : public CalcAST {
    public:
     std::string ident;
+    std::vector<std::unique_ptr<BaseAST>> indexes;  // optional array indexes
 
     void dump_koopa(IRGenerator &irgen, std::ostream &out) const override;
     bool calc_val(IRGenerator &irgen, int &result,
