@@ -9,41 +9,55 @@
 #include <utility>
 #include <vector>
 
+typedef enum {
+    SYMBOL_TABLE_ENTRY_VAR,
+    SYMBOL_TABLE_ENTRY_FUNC,
+    SYMBOL_TABLE_ENTRY_ARRAY,
+} symbol_table_entry_type_t;
+
 class SymbolTableEntry {
    public:
-    bool is_const;
-    int val;             // value of CONST
-                         // var has init value, but who knows how it changes?
-    int alias;           // suffix to differ local vars, added automatically
-    bool is_func_param;  // use % instead of @
-};
-
-class FuncSymbolTableEntry {
-   public:
+    symbol_table_entry_type_t type;
+    // var & array
+    bool is_named;  // prefix, @ if true, % otherwise
+    int alias;      // suffix to differ local vars, added automatically
+    // var
+    bool is_const;  // const var
+    int val;        // init value of const var
+    // func
     std::string func_type;
+    // array
+    std::vector<int> array_size;
 };
 
 typedef std::map<std::string, SymbolTableEntry> symbol_table_block_t;
 
 class SymbolTable {
    private:
-    std::vector<symbol_table_block_t> block_stack;
+    symbol_table_block_t global_table;
+    std::vector<symbol_table_block_t> block_stack;  // local
     std::map<std::string, int> alias_cnt;
-    std::map<std::string, FuncSymbolTableEntry> funcs;
-    bool pending_push = false;
+
+    int _get_alias(std::string name);
+    bool _get_local_table(symbol_table_block_t &table);
+    bool _get_entry(std::string name, SymbolTableEntry &entry);
 
    public:
-    bool exist_entry(std::string name);
-    bool is_const_entry(std::string name);
-    void insert_entry(std::string name, SymbolTableEntry entry);
-    int get_entry_val(std::string name);
-    void write_entry_val(std::string name, int val);
-    void push_block(bool by_func_def = false);
-    void pop_block();
-    std::string get_aliased_name(std::string name, bool with_prefix = true);
-    void insert_func_entry(std::string name, FuncSymbolTableEntry entry);
+    // insert new entry
+    void insert_var_entry(std::string name);
+    void insert_const_var_entry(std::string name, int val);
+    void insert_func_entry(std::string name, std::string func_type);
+    void insert_array_entry(std::string name, std::vector<int> array_size);
+
+    // get entry info
+    bool is_const_var_entry(std::string name);
+    int get_const_var_val(std::string name);
+    std::string get_var_name(std::string name);
     std::string get_func_entry_type(std::string name);
-    bool is_global_table();
+
+    // basic block stacking
+    void push_block();
+    void pop_block();
 };
 
 typedef enum {

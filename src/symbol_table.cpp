@@ -1,114 +1,164 @@
 #include "irgen.h"
 
-// recursively check if a symbol exists
-bool SymbolTable::exist_entry(std::string name) {
-    // recursive searching
+// helper functions
+
+// generate alias for a var/array
+int SymbolTable::_get_alias(std::string name) {
+    auto it_alias = alias_cnt.find(name);
+    if (it_alias == alias_cnt.end()) {
+        alias_cnt.insert(std::make_pair(name, 0));
+    }
+    return it_alias->second++;
+}
+
+// try to get local table and return true,
+// otherwise return global table and false
+bool SymbolTable::_get_local_table(symbol_table_block_t *table) {
+    auto it_b = block_stack.rbegin();
+    if (it_b != block_stack.rend()) {
+        table = &(*it_b);
+        return true;
+    } else {
+        table = &global_table;
+        return false;
+    }
+}
+
+// return symbol entry if successful
+bool SymbolTable::_get_entry(std::string name, SymbolTableEntry *entry) {
+    // recursive searching on local symbol table stack
     for (auto it_b = block_stack.rbegin(); it_b != block_stack.rend(); it_b++) {
         auto it_entry = it_b->find(name);
-        if (it_entry != it_b->end()) return true;
+        if (it_entry != it_b->end()) {
+            entry = &(it_entry->second);
+            return true;
+        }
     }
+    // check global symbol table
+    auto it_entry = global_table.find(name);
+    if (it_entry != global_table.end()) {
+        entry = &(it_entry->second);
+        return true;
+    }
+    entry = nullptr;
     return false;
 }
 
-// recursively check if a symbol is const
-bool SymbolTable::is_const_entry(std::string name) {
-    // recursive searching
-    for (auto it_b = block_stack.rbegin(); it_b != block_stack.rend(); it_b++) {
-        auto it_entry = it_b->find(name);
-        if (it_entry != it_b->end()) return it_entry->second.is_const;
+// insert new entry
+
+void SymbolTable::insert_var_entry(std::string name) {
+    symbol_table_block_t *table;
+    bool is_local = _get_local_table(table);
+    assert(table->find(name) == table->end());  // no duplication
+
+    SymbolTableEntry entry;
+    entry.type = SYMBOL_TABLE_ENTRY_VAR;
+    if (is_local) {
+        entry.is_named = false;
+        entry.alias = _get_alias(name);
+    } else {
+        entry.is_named = true;
+        entry.alias = -1;
     }
-    assert(false);
+    entry.is_const = false;
+
+    table->insert(std::make_pair(name, entry));
 }
 
-// insert a new entry to current block's symbol table
-void SymbolTable::insert_entry(std::string name, SymbolTableEntry entry) {
-    // current block shouldn't have this entry
-    auto it_b = block_stack.rbegin();
-    assert(it_b != block_stack.rend());
-    assert(it_b->find(name) == it_b->end());
+void SymbolTable::insert_const_var_entry(std::string name, int val) {
+    symbol_table_block_t *table;
+    bool is_local = _get_local_table(table);
+    assert(table->find(name) == table->end());  // no duplication
 
-    // add alias
-    auto it_alias = alias_cnt.find(name);
-    if (it_alias == alias_cnt.end()) {
-        alias_cnt[name] = 1;
-        entry.alias = 0;
+    SymbolTableEntry entry;
+    entry.type = SYMBOL_TABLE_ENTRY_VAR;
+    if (is_local) {
+        entry.is_named = false;
+        entry.alias = _get_alias(name);
     } else {
-        entry.alias = alias_cnt[name]++;
+        entry.is_named = true;
+        entry.alias = -1;
     }
+    entry.is_const = true;
+    entry.val = val;
 
-    it_b->insert(std::make_pair(name, entry));
+    table->insert(std::make_pair(name, entry));
+}
+
+void SymbolTable::insert_func_entry(std::string name, std::string func_type) {
+    assert(global_table.find(name) == global_table.end());
+
+    SymbolTableEntry entry;
+    entry.type = SYMBOL_TABLE_ENTRY_FUNC;
+    entry.func_type = func_type;
+    assert(func_type == "int" || func_type == "void");
+
+    global_table.insert(std::make_pair(name, entry));
+}
+
+void SymbolTable::insert_array_entry(std::string name,
+                                     std::vector<int> array_size) {
+    symbol_table_block_t *table;
+    bool is_local = _get_local_table(table);
+    assert(table->find(name) == table->end());  // no duplication
+
+    SymbolTableEntry entry;
+    entry.type = SYMBOL_TABLE_ENTRY_ARRAY;
+    if (is_local) {
+        entry.is_named = false;
+        entry.alias = _get_alias(name);
+    } else {
+        entry.is_named = true;
+        entry.alias = -1;
+    }
+    entry.is_const = false;
+    entry.array_size = array_size;
+
+    table->insert(std::make_pair(name, entry));
+}
+
+// recursively check if a symbol is const
+bool SymbolTable::is_const_var_entry(std::string name) {
+    SymbolTableEntry *entry;
+    assert(_get_entry(name, entry));
+    assert(entry->type == SYMBOL_TABLE_ENTRY_VAR);
+    return entry->is_const;
 }
 
 // recursively fetch an entry's val
-int SymbolTable::get_entry_val(std::string name) {
-    for (auto it_b = block_stack.rbegin(); it_b != block_stack.rend(); it_b++) {
-        auto it_entry = it_b->find(name);
-        if (it_entry != it_b->end()) {
-            return it_entry->second.val;
-        }
-    }
-    assert(false);
+int SymbolTable::get_const_var_val(std::string name) {
+    SymbolTableEntry *entry;
+    assert(_get_entry(name, entry));
+    assert(entry->type == SYMBOL_TABLE_ENTRY_VAR);
+    assert(entry->is_const);
+    return entry->val;
 }
 
-void SymbolTable::write_entry_val(std::string name, int val) {
-    for (auto it_b = block_stack.rbegin(); it_b != block_stack.rend(); it_b++) {
-        auto it_entry = it_b->find(name);
-        if (it_entry != it_b->end()) {
-            it_entry->second.val = val;
-            return;
-        }
-    }
-    assert(false);
-}
-
-void SymbolTable::push_block(bool by_func_def) {
-    if (by_func_def) {
-        assert(!pending_push);
-        pending_push = true;
-        block_stack.push_back(symbol_table_block_t());
-    } else {
-        if (pending_push) {
-            pending_push = false;
-        } else {
-            block_stack.push_back(symbol_table_block_t());
-        }
-    }
-}
-
-void SymbolTable::pop_block() { block_stack.pop_back(); }
-
-std::string SymbolTable::get_aliased_name(std::string name, bool with_prefix) {
-    for (auto it_b = block_stack.rbegin(); it_b != block_stack.rend(); it_b++) {
-        auto it_entry = it_b->find(name);
-        if (it_entry != it_b->end()) {
-            std::string prefix;
-            if (it_entry->second.is_func_param)
-                prefix = "%";
-            else
-                prefix = "@";
-            auto suffix = std::to_string(it_entry->second.alias);
-            if (with_prefix)
-                return prefix + name + "_" + suffix;
-            else
-                return name + "_" + suffix;
-        }
-    }
-    assert(false);
-}
-
-void SymbolTable::insert_func_entry(std::string name,
-                                    FuncSymbolTableEntry entry) {
-    auto it = funcs.find(name);
-    assert(it == funcs.end());
-    funcs.insert(std::make_pair(name, entry));
+std::string SymbolTable::get_var_name(std::string name) {
+    SymbolTableEntry *entry;
+    assert(_get_entry(name, entry));
+    assert(entry->type == SYMBOL_TABLE_ENTRY_VAR);
+    std::string ret = "";
+    if (entry->is_named)
+        ret += "@";
+    else
+        ret += "%";
+    ret += name;
+    if (entry->alias >= 0) ret += ("_" + std::to_string(entry->alias));
+    return ret;
 }
 
 std::string SymbolTable::get_func_entry_type(std::string name) {
-    auto it = funcs.find(name);
-    assert(it != funcs.end());
-    return it->second.func_type;
+    auto it_entry = global_table.find(name);
+    assert(it_entry != global_table.end());
+    assert(it_entry->second.type == SYMBOL_TABLE_ENTRY_FUNC);
+    return it_entry->second.func_type;
 }
 
-bool SymbolTable::is_global_table() {
-    return block_stack.size() == 1;
+// basic block stacking
+
+void SymbolTable::push_block() {
+    block_stack.push_back(symbol_table_block_t());
 }
+
+void SymbolTable::pop_block() { block_stack.pop_back(); }
