@@ -33,10 +33,12 @@ class KoopaAggregate {
             return "zeroinit";
         } else if (type == KOOPA_AGGREGATE_TYPE_AGGREGATE) {
             std::string ret = "{ ";
-            for (auto &agg : aggs) {
-                ret += agg.to_string() + ", ";
+            auto len = aggs.size();
+            for (int i = 0; i < len; i++) {
+                ret += aggs[i].to_string();
+                if (i + 1 != len) ret += ", ";
             }
-            ret += "}";
+            ret += " }";
             return ret;
         } else {
             assert(false);
@@ -83,7 +85,7 @@ static void simplify_aggregate_full_array(
                     it_sub_dim_begin, it_sub_dim_end, sub_agg);
                 ret_agg.aggs.push_back(sub_agg);
             }
-            assert(begin + interval * (*it_dim_begin) == it_dim_end);
+            assert(begin + interval * (*it_dim_begin) == end);
         }
     }
 }
@@ -110,13 +112,11 @@ static void pad_zero_initval_aggregate(IRGenerator &irgen, InitValAST *ast,
         } else {
             // list, check maximum alignment bound
             int prod_dim = 1;  // current maximum boundary
-            auto it_sub_dim_begin = it_dim_end;
+            auto it_sub_dim_begin = it_dim_begin;
             auto it_sub_dim_end = it_dim_end;
-            for (; it_sub_dim_begin != it_dim_begin; it_sub_dim_begin--) {
-                auto dim = *it_sub_dim_begin;
-                prod_dim *= dim;
-                if (i % prod_dim != 0) {
-                    prod_dim /= dim;
+            for (; it_sub_dim_begin != it_dim_end; it_sub_dim_begin++) {
+                prod_dim = reduce_prod(it_sub_dim_begin, it_dim_end);
+                if (i % prod_dim == 0) {
                     break;
                 }
             }
@@ -125,6 +125,8 @@ static void pad_zero_initval_aggregate(IRGenerator &irgen, InitValAST *ast,
             if (it_sub_dim_begin == it_dim_begin) {
                 assert(i == 0);  // must be a smaller boundary
                 it_sub_dim_begin++;
+                assert(it_sub_dim_begin != it_dim_end);
+                prod_dim = reduce_prod(it_sub_dim_begin, it_dim_end);
             }
             pad_zero_initval_aggregate(irgen, p_sub_val, it_sub_dim_begin,
                                        it_sub_dim_end, full_array);
@@ -200,8 +202,7 @@ void DeclAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
 }
 
 void DeclDefAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
-    bool is_array = (indexes.size() == 0);
-    if (!is_array) {
+    if (indexes.size() == 0) {  // var
         if (is_const) {
             // add const entry into symbol table
             int const_entry_val;
@@ -247,7 +248,7 @@ void DeclDefAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
                 }
             }
         }
-    } else {
+    } else {  // array
         // get array dims
         std::vector<int> dims;
         for (auto it_index = indexes.begin(); it_index != indexes.end();
@@ -277,12 +278,14 @@ void DeclDefAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
                     irgen, dynamic_cast<InitValAST *>(init_val.get()), dims,
                     agg);
                 out << ", " << agg.to_string();
+            } else {
+                out << ", zeroinit" << std::endl;
             }
             out << std::endl;
 
         } else {
             auto array_name = irgen.symbol_table.get_array_name(ident);
-            out << "  " << array_name << " = alloc " << array_type;
+            out << "  " << array_name << " = alloc " << array_type << std::endl;
             if (init_val.get()) {
                 KoopaAggregate agg;
                 analyze_initval_aggregate(
@@ -824,11 +827,13 @@ void LValAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
             assert(dynamic_cast<CalcAST *>(it_index->get())
                        ->calc_val(irgen, dim, true));
             std::string ptr_tmp = irgen.new_val();
-            out << "  " << ptr_tmp << " = getelemptr " << ptr_index << ", " << dim << std::endl;
+            out << "  " << ptr_tmp << " = getelemptr " << ptr_index << ", "
+                << dim << std::endl;
             ptr_index = ptr_tmp;
         }
         std::string val_name = irgen.new_val();
-        out << "  " << val_name << " = load " << aliased_name << std::endl;
+        out << "  " << val_name << " = load " << ptr_index << std::endl;
+        irgen.stack_val.push(val_name);
     } else {
         std::cerr << "LValAST: invalid type!" << std::endl;
         assert(false);
