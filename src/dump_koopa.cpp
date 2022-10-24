@@ -1,11 +1,158 @@
 #include <ast.h>
 
+// helper functions
+
 // check if exp's operand is named or temp symbol
-bool is_symbol(std::string operand) {
+static bool is_symbol(std::string operand) {
     assert(operand != "INVALID");
     auto c = operand[0];
     return c == '%' || c == '@';
 }
+
+// Aggregate
+
+typedef enum {
+    KOOPA_AGGREGATE_TYPE_INT,
+    KOOPA_AGGREGATE_TYPE_UNDEF,
+    KOOPA_AGGREGATE_TYPE_AGGREGATE,
+    KOOPA_AGGREGATE_TYPE_ZEROINIT,
+} koopa_aggregate_type_t;
+
+class KoopaAggregate {
+   public:
+    koopa_aggregate_type_t type;
+    int int_val;
+    std::vector<KoopaAggregate> aggs;
+
+    std::string to_string() {
+        if (type == KOOPA_AGGREGATE_TYPE_INT) {
+            return std::to_string(int_val);
+        } else if (type == KOOPA_AGGREGATE_TYPE_UNDEF) {
+            return "undef";
+        } else if (type == KOOPA_AGGREGATE_TYPE_ZEROINIT) {
+            return "zeroinit";
+        } else if (type == KOOPA_AGGREGATE_TYPE_AGGREGATE) {
+            std::string ret = "{ ";
+            for (auto &agg : aggs) {
+                ret += agg.to_string() + ", ";
+            }
+            ret += "}";
+            return ret;
+        } else {
+            assert(false);
+        }
+    }
+};
+
+// if begin == end, prod = 1
+static int reduce_prod(std::vector<int>::iterator begin,
+                       std::vector<int>::iterator end) {
+    int prod = 1;
+    for (auto it = begin; it != end; it++) {
+        prod *= *it;
+    }
+    return prod;
+}
+
+// aggregate a given piece of full array into one reg_agg
+static void simplify_aggregate_full_array(
+    std::vector<int>::iterator begin, std::vector<int>::iterator end,
+    std::vector<int>::iterator it_dim_begin,
+    std::vector<int>::iterator it_dim_end, KoopaAggregate &ret_agg) {
+    // zeroinit?
+    bool is_zeroinit = true;
+    for (auto it = begin; it != end; it++)
+        is_zeroinit = is_zeroinit && (*it == 0);
+
+    if (is_zeroinit) {
+        ret_agg.type = KOOPA_AGGREGATE_TYPE_ZEROINIT;
+    } else {
+        if (it_dim_begin == it_dim_end) {
+            assert(begin + 1 == end);
+            ret_agg.type = KOOPA_AGGREGATE_TYPE_INT;
+            ret_agg.int_val = *begin;
+        } else {
+            ret_agg.type = KOOPA_AGGREGATE_TYPE_AGGREGATE;
+            auto it_sub_dim_begin = it_dim_begin + 1;
+            auto it_sub_dim_end = it_dim_end;
+            auto interval = reduce_prod(it_sub_dim_begin, it_sub_dim_end);
+            for (int i = 0; i < *it_dim_begin; i++) {
+                KoopaAggregate sub_agg;
+                simplify_aggregate_full_array(
+                    begin + i * interval, begin + (i + 1) * interval,
+                    it_sub_dim_begin, it_sub_dim_end, sub_agg);
+                ret_agg.aggs.push_back(sub_agg);
+            }
+            assert(begin + interval * (*it_dim_begin) == it_dim_end);
+        }
+    }
+}
+
+static void pad_zero_initval_aggregate(IRGenerator &irgen, InitValAST *ast,
+                                       std::vector<int>::iterator it_dim_begin,
+                                       std::vector<int>::iterator it_dim_end,
+                                       std::vector<int> &full_array) {
+    assert(ast->type == INIT_VAL_AST_TYPE_SUB_VALS);
+    int i = 0;  // current index
+    for (auto it_sub_val = ast->init_vals.begin();
+         it_sub_val != ast->init_vals.end(); it_sub_val++) {
+        auto p_sub_val = dynamic_cast<InitValAST *>(it_sub_val->get());
+
+        auto sub_val_type = p_sub_val->type;
+        if (sub_val_type == INIT_VAL_AST_TYPE_EXP) {
+            // int, directly insert into full array
+            int int_val;
+            assert(dynamic_cast<CalcAST *>(p_sub_val->exp.get())
+                       ->calc_val(irgen, int_val, true));
+            full_array.push_back(int_val);
+            i += 1;
+
+        } else {
+            // list, check maximum alignment bound
+            int prod_dim = 1;  // current maximum boundary
+            auto it_sub_dim_begin = it_dim_end;
+            auto it_sub_dim_end = it_dim_end;
+            for (; it_sub_dim_begin != it_dim_begin; it_sub_dim_begin--) {
+                auto dim = *it_sub_dim_begin;
+                prod_dim *= dim;
+                if (i % prod_dim != 0) {
+                    prod_dim /= dim;
+                    break;
+                }
+            }
+            assert(it_sub_dim_end !=
+                   it_sub_dim_begin);  // must be on some boundary
+            if (it_sub_dim_begin == it_dim_begin) {
+                assert(i == 0);  // must be a smaller boundary
+                it_sub_dim_begin++;
+            }
+            pad_zero_initval_aggregate(irgen, p_sub_val, it_sub_dim_begin,
+                                       it_sub_dim_end, full_array);
+            i += prod_dim;
+        }
+    }
+    // pad zero for all the remaining elements
+    int prod_dim = reduce_prod(it_dim_begin, it_dim_end);
+    for (; i < prod_dim; i++) full_array.push_back(0);
+}
+
+// This function promises a valid and simple aggregation result
+static void analyze_initval_aggregate(IRGenerator &irgen, InitValAST *ast,
+                                      std::vector<int> &dims,
+                                      KoopaAggregate &ret_agg) {
+    assert(dims.size() != 0);
+    std::vector<int> full_array;
+
+    pad_zero_initval_aggregate(irgen, ast, dims.begin(), dims.end(),
+                               full_array);
+    int prod_dim = reduce_prod(dims.begin(), dims.end());
+    assert(full_array.size() == prod_dim);
+
+    simplify_aggregate_full_array(full_array.begin(), full_array.end(),
+                                  dims.begin(), dims.end(), ret_agg);
+}
+
+// dump koopa
 
 void StartAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
     // dump sysy library function
@@ -53,48 +200,96 @@ void DeclAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
 }
 
 void DeclDefAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
-    if (is_const) {
-        // add const entry into symbol table
-        int const_entry_val;
-        auto exp = dynamic_cast<InitValAST *>(init_val.get())->exp.get();
-        assert(dynamic_cast<CalcAST *>(exp)->calc_val(irgen, const_entry_val,
-                                                      true));
-        irgen.symbol_table.insert_const_var_entry(ident, const_entry_val);
-    } else {
-        irgen.symbol_table.insert_var_entry(ident);
-        bool is_global = irgen.symbol_table.is_global_var_entry(ident);
-        if (is_global) {
-            std::string store_val = "zeroinit";
-            if (init_val.get()) {
-                auto exp =
-                    dynamic_cast<InitValAST *>(init_val.get())->exp.get();
-                // global decl only use const
-                int exp_val;
-                assert(dynamic_cast<CalcAST *>(exp)->calc_val(irgen, exp_val,
-                                                              true));
-                store_val = std::to_string(exp_val);
-            }
+    bool is_array = (indexes.size() == 0);
+    if (!is_array) {
+        if (is_const) {
+            // add const entry into symbol table
+            int const_entry_val;
+            auto exp = dynamic_cast<InitValAST *>(init_val.get())->exp.get();
+            assert(dynamic_cast<CalcAST *>(exp)->calc_val(
+                irgen, const_entry_val, true));
+            irgen.symbol_table.insert_const_var_entry(ident, const_entry_val);
+        } else {
+            irgen.symbol_table.insert_var_entry(ident);
+            if (irgen.symbol_table.is_global_symbol_table()) {
+                std::string store_val = "zeroinit";
+                if (init_val.get()) {
+                    auto exp =
+                        dynamic_cast<InitValAST *>(init_val.get())->exp.get();
+                    // global decl only use const
+                    int exp_val;
+                    assert(dynamic_cast<CalcAST *>(exp)->calc_val(
+                        irgen, exp_val, true));
+                    store_val = std::to_string(exp_val);
+                }
 
-            auto var_name = irgen.symbol_table.get_var_name(ident);
-            out << "global " << var_name << " = alloc i32, " << store_val
-                << std::endl;
+                auto var_name = irgen.symbol_table.get_var_name(ident);
+                out << "global " << var_name << " = alloc i32, " << store_val
+                    << std::endl;
+
+            } else {
+                // store initial value to memory, if there is
+                std::string store_val;
+                if (init_val.get()) {
+                    auto exp =
+                        dynamic_cast<InitValAST *>(init_val.get())->exp.get();
+                    // local decl could use variables
+                    exp->dump_koopa(irgen, out);
+                    store_val = irgen.stack_val.top();
+                    irgen.stack_val.pop();
+                }
+
+                auto var_name = irgen.symbol_table.get_var_name(ident);
+                out << "  " << var_name << " = alloc i32" << std::endl;
+                if (init_val.get()) {
+                    out << "  store " << store_val << ", " << var_name
+                        << std::endl;
+                }
+            }
+        }
+    } else {
+        // get array dims
+        std::vector<int> dims;
+        for (auto it_index = indexes.begin(); it_index != indexes.end();
+             it_index++) {
+            int dim;
+            assert(dynamic_cast<CalcAST *>(it_index->get())
+                       ->calc_val(irgen, dim, true));
+            dims.push_back(dim);
+        }
+
+        // add to symbol table
+        irgen.symbol_table.insert_array_entry(ident, dims);
+
+        // infer array type
+        std::string array_type = "i32";
+        for (auto it = dims.rbegin(); it != dims.rend(); it++) {
+            array_type = "[" + array_type + ", " + std::to_string(*it) + "]";
+        }
+
+        // global alloc / local alloc
+        if (irgen.symbol_table.is_global_symbol_table()) {
+            auto array_name = irgen.symbol_table.get_array_name(ident);
+            out << "global " << array_name << " = alloc " << array_type;
+            if (init_val.get()) {
+                KoopaAggregate agg;
+                analyze_initval_aggregate(
+                    irgen, dynamic_cast<InitValAST *>(init_val.get()), dims,
+                    agg);
+                out << ", " << agg.to_string();
+            }
+            out << std::endl;
 
         } else {
-            // store initial value to memory, if there is
-            std::string store_val;
+            auto array_name = irgen.symbol_table.get_array_name(ident);
+            out << "  " << array_name << " = alloc " << array_type;
             if (init_val.get()) {
-                auto exp =
-                    dynamic_cast<InitValAST *>(init_val.get())->exp.get();
-                // local decl could use variables
-                exp->dump_koopa(irgen, out);
-                store_val = irgen.stack_val.top();
-                irgen.stack_val.pop();
-            }
-
-            auto var_name = irgen.symbol_table.get_var_name(ident);
-            out << "  " << var_name << " = alloc i32" << std::endl;
-            if (init_val.get()) {
-                out << "  store " << store_val << ", " << var_name << std::endl;
+                KoopaAggregate agg;
+                analyze_initval_aggregate(
+                    irgen, dynamic_cast<InitValAST *>(init_val.get()), dims,
+                    agg);
+                out << "  store " << agg.to_string() << ", " << array_name
+                    << std::endl;
             }
         }
     }
@@ -129,7 +324,8 @@ void FuncDefAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
         out << ": i32 ";
     } else if (func_type == "void") {
     } else {
-        std::cerr << "FuncDefAST: invalid func type: " << func_type << std::endl;
+        std::cerr << "FuncDefAST: invalid func type: " << func_type
+                  << std::endl;
         assert(false);
     }
     out << "{" << std::endl;
@@ -141,11 +337,11 @@ void FuncDefAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
     // duplicate formal parameters
     for (auto &param_ : params) {
         auto param = (FuncFParamAST *)(param_.get());
-        auto param_name =
-            irgen.symbol_table.get_var_name(param->ident);
+        auto param_name = irgen.symbol_table.get_var_name(param->ident);
         assert(param->btype == "int");
         out << "  " << param_name << " = alloc i32" << std::endl;
-        out << "  store @" << param_name.c_str() + 1 << ", " << param_name << std::endl;
+        out << "  store @" << param_name.c_str() + 1 << ", " << param_name
+            << std::endl;
     }
 
     block->dump_koopa(irgen, out);
@@ -608,13 +804,33 @@ void PrimaryExpAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
 }
 
 void LValAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
-    if (irgen.symbol_table.is_const_var_entry(ident)) {
-        int val = irgen.symbol_table.get_const_var_val(ident);
-        irgen.stack_val.push(std::to_string(val));
+    auto type = irgen.symbol_table.get_entry_type(ident);
+    if (type == SYMBOL_TABLE_ENTRY_VAR) {
+        if (irgen.symbol_table.is_const_var_entry(ident)) {
+            int val = irgen.symbol_table.get_const_var_val(ident);
+            irgen.stack_val.push(std::to_string(val));
+        } else {
+            auto val = irgen.new_val();
+            auto aliased_name = irgen.symbol_table.get_var_name(ident);
+            out << "  " << val << " = load " << aliased_name << std::endl;
+            irgen.stack_val.push(val);
+        }
+    } else if (type == SYMBOL_TABLE_ENTRY_ARRAY) {
+        std::string aliased_name = irgen.symbol_table.get_array_name(ident);
+        std::string ptr_index = aliased_name;
+        for (auto it_index = indexes.begin(); it_index != indexes.end();
+             it_index++) {
+            int dim;
+            assert(dynamic_cast<CalcAST *>(it_index->get())
+                       ->calc_val(irgen, dim, true));
+            std::string ptr_tmp = irgen.new_val();
+            out << "  " << ptr_tmp << " = getelemptr " << ptr_index << ", " << dim << std::endl;
+            ptr_index = ptr_tmp;
+        }
+        std::string val_name = irgen.new_val();
+        out << "  " << val_name << " = load " << aliased_name << std::endl;
     } else {
-        auto val = irgen.new_val();
-        auto aliased_name = irgen.symbol_table.get_var_name(ident);
-        out << "  " << val << " = load " << aliased_name << std::endl;
-        irgen.stack_val.push(val);
+        std::cerr << "LValAST: invalid type!" << std::endl;
+        assert(false);
     }
 }

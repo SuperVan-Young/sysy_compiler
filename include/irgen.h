@@ -50,10 +50,13 @@ class SymbolTable {
     void insert_array_entry(std::string name, std::vector<int> array_size);
 
     // get entry info
+    bool is_global_symbol_table();
+    symbol_table_entry_type_t get_entry_type(std::string name);
     bool is_global_var_entry(std::string name);
     bool is_const_var_entry(std::string name);
     int get_const_var_val(std::string name);
     std::string get_var_name(std::string name);
+    std::string get_array_name(std::string name);
     std::string get_func_entry_type(std::string name);
 
     // basic block stacking

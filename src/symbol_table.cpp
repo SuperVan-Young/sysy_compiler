@@ -120,20 +120,14 @@ void SymbolTable::insert_array_entry(std::string name,
 
 // fetch entry info
 
-bool SymbolTable::is_global_var_entry(std::string name) {
-    for (auto it_b = block_stack.rbegin(); it_b != block_stack.rend(); it_b++) {
-        auto it_entry = it_b->find(name);
-        if (it_entry != it_b->end()) {
-            assert(it_entry->second.type == SYMBOL_TABLE_ENTRY_VAR);
-            return false;
-        }
-    }
-    auto it_entry = global_table.find(name);
-    if (it_entry != global_table.end()) {
-        assert(it_entry->second.type == SYMBOL_TABLE_ENTRY_VAR);
-        return true;
-    }
-    assert(false);
+symbol_table_entry_type_t SymbolTable::get_entry_type(std::string name) {
+    SymbolTableEntry *entry = nullptr;
+    assert(_get_entry(name, entry));
+    return entry->type;
+}
+
+bool SymbolTable::is_global_symbol_table() {
+    return (block_stack.size() == 0);
 }
 
 bool SymbolTable::is_const_var_entry(std::string name) {
@@ -155,6 +149,20 @@ std::string SymbolTable::get_var_name(std::string name) {
     SymbolTableEntry *entry = nullptr;
     assert(_get_entry(name, entry));
     assert(entry->type == SYMBOL_TABLE_ENTRY_VAR);
+    std::string ret = "";
+    if (entry->is_named)
+        ret += "@";
+    else
+        ret += "%";
+    ret += name;
+    if (entry->alias >= 0) ret += ("_" + std::to_string(entry->alias));
+    return ret;
+}
+
+std::string SymbolTable::get_array_name(std::string name) {
+    SymbolTableEntry *entry = nullptr;
+    assert(_get_entry(name, entry));
+    assert(entry->type == SYMBOL_TABLE_ENTRY_ARRAY);
     std::string ret = "";
     if (entry->is_named)
         ret += "@";

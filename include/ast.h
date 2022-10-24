@@ -51,15 +51,16 @@ class DeclAST : public BaseAST {
     void dump_koopa(IRGenerator &irgen, std::ostream &out) const override;
 };
 
-// ConstDef      ::= IDENT "=" ConstInitVal
-// VarDef        ::= IDENT | IDENT "=" InitVal
+// ConstDef      ::= IDENT {"[" ConstExp "]"} "=" ConstInitVal
+// VarDef        ::= IDENT {"[" ConstExp "]"}
+//                 | IDENT {"[" ConstExp "]"} "=" InitVal
 class DeclDefAST : public BaseAST {
    public:
     bool is_const;
     std::string ident;
     std::vector<std::unique_ptr<BaseAST>> indexes;  // optional array indexes
-    std::unique_ptr<BaseAST> init_val;             // could be null for var
-    DeclDefAST *next;                              // for optional defs
+    std::unique_ptr<BaseAST> init_val;              // could be null for var
+    DeclDefAST *next;                               // for optional defs
 
     void dump_koopa(IRGenerator &irgen, std::ostream &out) const override;
 };
@@ -70,8 +71,9 @@ typedef enum {
 } init_val_ast_type;
 
 // ConstInitVal  ::= ConstExp
+//                 | "{" [ConstInitVal {"," ConstInitVal}] "}"
 // InitVal       ::= Exp
-// TODO: This will be expanded for array
+//                 | "{" [InitVal {"," InitVal}] "}";
 class InitValAST : public BaseAST {
    public:
     init_val_ast_type type;
