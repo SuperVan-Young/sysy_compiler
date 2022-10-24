@@ -407,9 +407,20 @@ void StmtAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
 
         // lval shouldn't be const
         auto lval_name = dynamic_cast<LValAST *>(lval.get())->ident;
-        assert(!irgen.symbol_table.is_const_var_entry(lval_name));
-        auto lval_var_name = irgen.symbol_table.get_var_name(lval_name);
-        out << "  store " << r_val << ", " << lval_var_name << std::endl;
+        auto lval_type = irgen.symbol_table.get_entry_type(lval_name);
+        if (lval_type == SYMBOL_TABLE_ENTRY_VAR) {
+            assert(!irgen.symbol_table.is_const_var_entry(lval_name));
+            auto lval_var_name = irgen.symbol_table.get_var_name(lval_name);
+            out << "  store " << r_val << ", " << lval_var_name << std::endl;
+        } else if (lval_type == SYMBOL_TABLE_ENTRY_ARRAY) {
+            dynamic_cast<LValAST *>(lval.get())->dump_koopa_parse_indexes(irgen, out);
+            std::string ptr_index = irgen.stack_val.top();
+            irgen.stack_val.pop();
+            out << "  store " << r_val << ", " << ptr_index << std::endl;
+        } else {
+            std::cerr << "StmtAST: invalid lval type!" << std::endl;
+            assert(false);
+        }
 
     } else if (type == STMT_AST_TYPE_RETURN) {
         if (exp.get() != nullptr) {
@@ -819,18 +830,9 @@ void LValAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
             irgen.stack_val.push(val);
         }
     } else if (type == SYMBOL_TABLE_ENTRY_ARRAY) {
-        std::string aliased_name = irgen.symbol_table.get_array_name(ident);
-        std::string ptr_index = aliased_name;
-        for (auto it_index = indexes.begin(); it_index != indexes.end();
-             it_index++) {
-            int dim;
-            assert(dynamic_cast<CalcAST *>(it_index->get())
-                       ->calc_val(irgen, dim, true));
-            std::string ptr_tmp = irgen.new_val();
-            out << "  " << ptr_tmp << " = getelemptr " << ptr_index << ", "
-                << dim << std::endl;
-            ptr_index = ptr_tmp;
-        }
+        dump_koopa_parse_indexes(irgen, out);
+        std::string ptr_index = irgen.stack_val.top();
+        irgen.stack_val.pop();
         std::string val_name = irgen.new_val();
         out << "  " << val_name << " = load " << ptr_index << std::endl;
         irgen.stack_val.push(val_name);
@@ -838,4 +840,21 @@ void LValAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
         std::cerr << "LValAST: invalid type!" << std::endl;
         assert(false);
     }
+}
+
+void LValAST::dump_koopa_parse_indexes(IRGenerator &irgen, std::ostream &out) const {
+    std::string aliased_name = irgen.symbol_table.get_array_name(ident);
+    std::string ptr_index = aliased_name;
+    for (auto it_index = indexes.begin(); it_index != indexes.end();
+            it_index++) {
+        // dump the index
+        it_index->get()->dump_koopa(irgen, out);
+        auto dim = irgen.stack_val.top();
+        irgen.stack_val.pop();
+        std::string ptr_tmp = irgen.new_val();
+        out << "  " << ptr_tmp << " = getelemptr " << ptr_index << ", "
+            << dim << std::endl;
+        ptr_index = ptr_tmp;
+    }
+    irgen.stack_val.push(ptr_index);
 }

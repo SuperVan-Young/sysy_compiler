@@ -257,4 +257,6 @@ class LValAST : public CalcAST {
     void dump_koopa(IRGenerator &irgen, std::ostream &out) const override;
     bool calc_val(IRGenerator &irgen, int &result,
                   bool calc_const) const override;
+    // dump all pointer references, and put the pointer on stack_val
+    void dump_koopa_parse_indexes(IRGenerator &irgen, std::ostream &out) const;
 };
