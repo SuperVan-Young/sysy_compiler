@@ -63,6 +63,7 @@ class SymbolTable {
     std::string get_func_entry_type(std::string name);
     bool is_func_param_ptr(std::string name, int index);
     bool is_ptr_array_entry(std::string name);
+    std::string get_array_entry_type(std::string name);
 
     // basic block stacking
     void push_block();

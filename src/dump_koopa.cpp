@@ -305,59 +305,42 @@ void DeclDefAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
 }
 
 void FuncDefAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
-    // register func name and func param type
-    // TODO: type inference and is_ptr, should all be handled by symbol table
-    std::vector<bool> is_func_param_ptr;
-    std::vector<std::vector<int>> func_param_array_size;  // optional
-    std::vector<std::string> func_param_type;
-    for (auto &param_ : params) {
-        auto param = (FuncFParamAST *)(param_.get());
-
-        is_func_param_ptr.push_back(param->is_ptr);
-
-        // infer param type
-        std::vector<int> dims;
-        for (auto it_index = param->indexes.begin();
-             it_index != param->indexes.end(); it_index++) {
-            int dim;
-            dynamic_cast<CalcAST *>(it_index->get())
-                ->calc_val(irgen, dim, true);
-            dims.push_back(dim);
-        }
-        func_param_array_size.push_back(dims);
-
-        // record func type str
-        std::string cur_param_type = "i32";
-        for (auto it = dims.rbegin(); it != dims.rend(); it++) {
-            cur_param_type =
-                "[" + cur_param_type + ", " + std::to_string(*it) + "]";
-        }
-        if (param->is_ptr) cur_param_type = "*" + cur_param_type;
-        func_param_type.push_back(cur_param_type);
-    }
-    irgen.symbol_table.insert_func_entry(ident, func_type, is_func_param_ptr);
-    out << "fun @" << ident;
+    out << "fun @" << ident << "(";
+    irgen.symbol_table.push_block();
 
     // dump param list
-    irgen.symbol_table.push_block();
-    out << "(";
+    std::vector<bool> is_func_param_ptr;
     int cnt_param = 0;
     for (auto &param_ : params) {
-        // dump formal parameters
         auto param = (FuncFParamAST *)(param_.get());
-        std::string param_name;
 
-        if (is_func_param_ptr[cnt_param]) {
-            auto &dims = func_param_array_size[cnt_param];
+        // record param ptr status
+        is_func_param_ptr.push_back(param->is_ptr);
+
+        std::string param_name;
+        std::string param_type;
+        if (param->is_ptr) {
+            // infer param type
+            std::vector<int> dims;
+            for (auto it_index = param->indexes.begin();
+                 it_index != param->indexes.end(); it_index++) {
+                int dim;
+                dynamic_cast<CalcAST *>(it_index->get())
+                    ->calc_val(irgen, dim, true);
+                dims.push_back(dim);
+            }
+
             irgen.symbol_table.insert_array_entry(param->ident, dims, true);
             param_name = irgen.symbol_table.get_array_name(param->ident);
+            param_type = irgen.symbol_table.get_array_entry_type(param->ident);
+
         } else {
             irgen.symbol_table.insert_var_entry(param->ident);
             param_name = irgen.symbol_table.get_var_name(param->ident);
+            param_type = "i32";
         }
         out << "@" << param_name.c_str() + 1;
-        out << ": " << func_param_type[cnt_param];
-
+        out << ": " << param_type;
         if (++cnt_param < params.size()) out << ", ";
     }
     out << ")";
@@ -371,9 +354,11 @@ void FuncDefAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
                   << std::endl;
         assert(false);
     }
-    out << "{" << std::endl;
+    // register func name and func param type before dumping func body
+    irgen.symbol_table.insert_func_entry(ident, func_type, is_func_param_ptr);
 
     // prepare the first basic block for control flow
+    out << "{" << std::endl;
     auto block_name = irgen.new_block();
     irgen.control_flow.init_entry_block(block_name, out);
 
@@ -382,12 +367,15 @@ void FuncDefAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
     for (auto &param_ : params) {
         auto param = (FuncFParamAST *)(param_.get());
         std::string param_name;
-        if (is_func_param_ptr[cnt_param])
+        std::string param_type;
+        if (is_func_param_ptr[cnt_param]) {
             param_name = irgen.symbol_table.get_array_name(param->ident);
-        else
+            param_type = irgen.symbol_table.get_array_entry_type(param->ident);
+        } else {
             param_name = irgen.symbol_table.get_var_name(param->ident);
-        out << "  " << param_name << " = alloc " << func_param_type[cnt_param]
-            << std::endl;
+            param_type = "i32";
+        }
+        out << "  " << param_name << " = alloc " << param_type << std::endl;
         out << "  store @" << param_name.c_str() + 1 << ", " << param_name
             << std::endl;
         cnt_param++;

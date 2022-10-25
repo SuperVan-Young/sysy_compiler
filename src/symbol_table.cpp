@@ -196,6 +196,20 @@ bool SymbolTable::is_ptr_array_entry(std::string name) {
     return entry->is_ptr;
 }
 
+std::string SymbolTable::get_array_entry_type(std::string name) {
+    SymbolTableEntry *entry = nullptr;
+    assert(_get_entry(name, entry));
+    assert(entry->type == SYMBOL_TABLE_ENTRY_ARRAY);
+    std::string type = "i32";
+    for (auto it_index = entry->array_size.rbegin();
+         it_index != entry->array_size.rend(); it_index++) {
+        type = "[" + type + ", " + std::to_string(*it_index) + "]";
+    }
+    if (entry->is_ptr)
+        type = "*" + type;
+    return type;
+}
+
 // basic block stacking
 
 void SymbolTable::push_block() {
