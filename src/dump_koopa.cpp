@@ -172,7 +172,7 @@ void StartAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
     irgen.symbol_table.insert_func_entry("getint", "int", std::vector<bool>());
     irgen.symbol_table.insert_func_entry("getch", "int", std::vector<bool>());
     irgen.symbol_table.insert_func_entry("getarray", "int",
-                                         std::vector<bool>());
+                                         std::vector<bool>({true}));
     irgen.symbol_table.insert_func_entry("putint", "void",
                                          std::vector<bool>({false}));
     irgen.symbol_table.insert_func_entry("putch", "void",
@@ -826,15 +826,24 @@ void UnaryExpAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
                     dynamic_cast<PrimaryExpAST *>(exp->binary_exp.get());
                 assert(prim_exp);
                 assert(prim_exp->type == PRIMARY_EXP_AST_TYPE_LVAL);
-                dynamic_cast<LValAST *>(prim_exp->lval.get())
-                    ->dump_koopa_parse_indexes(irgen, out);
+                auto lval_exp = dynamic_cast<LValAST *>(prim_exp->lval.get());
+                lval_exp->dump_koopa_parse_indexes(irgen, out);
 
                 // get first element ptr
                 auto ptr_arr = irgen.stack_val.top();
                 irgen.stack_val.pop();
                 auto ptr_first_elem = irgen.new_val();
-                out << "  " << ptr_first_elem << " = getelemptr " << ptr_arr
-                    << ", 0" << std::endl;
+                if (lval_exp->indexes.size() == 0 &&
+                    irgen.symbol_table.is_ptr_array_entry(lval_exp->ident)) {
+                    auto ptr_ttmp = irgen.new_val();
+                    out << "  " << ptr_ttmp << " = load " << ptr_arr
+                        << std::endl;
+                    out << "  " << ptr_first_elem << " = getptr " << ptr_ttmp
+                        << ", 0" << std::endl;
+                } else {
+                    out << "  " << ptr_first_elem << " = getelemptr " << ptr_arr
+                        << ", 0" << std::endl;
+                }
                 irgen.stack_val.push(ptr_first_elem);
 
             } else {
