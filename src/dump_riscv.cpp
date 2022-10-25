@@ -389,10 +389,11 @@ int TargetCodeGenerator::dump_koopa_raw_value_store(koopa_raw_value_t value) {
     auto dst = value->kind.data.store.dest;
     if (dst->kind.tag == KOOPA_RVT_ALLOC) {
         auto dst_offset = runtime_stack.top().get_offset(dst);
-        dump_sw("t0", dst_offset);
+        dump_sw(reg, dst_offset);
     } else if (dst->kind.tag == KOOPA_RVT_GLOBAL_ALLOC) {
-        dump_riscv_inst("la", "t4", dst->name + 1);
-        dump_riscv_inst("sw", "t0", "0(t4)");
+        std::string tmp_reg = "t6"; // no loading in the following
+        dump_riscv_inst("la", tmp_reg, dst->name + 1);
+        dump_riscv_inst("sw", reg, "0(" + tmp_reg + ")");
     } else {
         auto tag = to_koopa_raw_value_tag(src->kind.tag);
         std::cerr << "Store: invalid type " << tag << std::endl;
@@ -543,7 +544,33 @@ int TargetCodeGenerator::dump_koopa_raw_value_get_elem_ptr(
     int elem_size = get_koopa_raw_value_size(elem_ty);
     dump_riscv_inst("li", elem_size_reg, std::to_string(elem_size));
 
-    // TODO: use shift instead of mul
+    dump_riscv_inst("mul", index_reg, index_reg, elem_size_reg);
+    dump_riscv_inst("add", base_reg, index_reg, index_reg);
+
+    auto dst_offset = runtime_stack.top().get_offset(value);
+    dump_sw(base_reg, dst_offset);
+    return 0;
+}
+
+int TargetCodeGenerator::dump_koopa_raw_value_get_ptr(koopa_raw_value_t value) {
+    std::string base_reg = "t0";
+    std::string index_reg = "t1";
+    std::string elem_size_reg = "t2";
+
+    // load base ptr
+    auto src = value->kind.data.get_elem_ptr.src;
+    assert(load_value_to_reg(src, base_reg));
+
+    // calculate index
+    auto index = value->kind.data.get_elem_ptr.index;
+    assert(load_value_to_reg(index, index_reg));
+
+    // base ptr's base (...) size
+    assert(src->ty->tag == KOOPA_RTT_POINTER);
+    auto ptr_base_ty = src->ty->data.pointer.base;
+    int elem_size = get_koopa_raw_value_size(ptr_base_ty);
+    dump_riscv_inst("li", elem_size_reg, std::to_string(elem_size));
+
     dump_riscv_inst("mul", index_reg, index_reg, elem_size_reg);
     dump_riscv_inst("add", base_reg, index_reg, index_reg);
 
