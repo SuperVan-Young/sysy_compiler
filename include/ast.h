@@ -104,6 +104,8 @@ class FuncFParamAST : public BaseAST {
    public:
     std::string ident;
     std::string btype;
+    bool is_ptr;
+    std::vector<std::unique_ptr<BaseAST>> indexes;
     FuncFParamAST *next;
 
     void dump_koopa(IRGenerator &irgen, std::ostream &out) const override {

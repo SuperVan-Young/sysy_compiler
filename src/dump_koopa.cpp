@@ -169,14 +169,20 @@ void StartAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
     out << std::endl;
 
     // add these functions to global symbol table
-    irgen.symbol_table.insert_func_entry("getint", "int");
-    irgen.symbol_table.insert_func_entry("getch", "int");
-    irgen.symbol_table.insert_func_entry("getarray", "int");
-    irgen.symbol_table.insert_func_entry("putint", "void");
-    irgen.symbol_table.insert_func_entry("putch", "void");
-    irgen.symbol_table.insert_func_entry("putarray", "void");
-    irgen.symbol_table.insert_func_entry("starttime", "void");
-    irgen.symbol_table.insert_func_entry("stoptime", "void");
+    irgen.symbol_table.insert_func_entry("getint", "int", std::vector<bool>());
+    irgen.symbol_table.insert_func_entry("getch", "int", std::vector<bool>());
+    irgen.symbol_table.insert_func_entry("getarray", "int",
+                                         std::vector<bool>());
+    irgen.symbol_table.insert_func_entry("putint", "void",
+                                         std::vector<bool>({false}));
+    irgen.symbol_table.insert_func_entry("putch", "void",
+                                         std::vector<bool>({false}));
+    irgen.symbol_table.insert_func_entry("putarray", "void",
+                                         std::vector<bool>({false, true}));
+    irgen.symbol_table.insert_func_entry("starttime", "void",
+                                         std::vector<bool>());
+    irgen.symbol_table.insert_func_entry("stoptime", "void",
+                                         std::vector<bool>());
 
     // the actual dumping order is reverse!
     for (auto it = units.rbegin(); it != units.rend(); it++) {
@@ -299,8 +305,37 @@ void DeclDefAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
 }
 
 void FuncDefAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
-    // register func name
-    irgen.symbol_table.insert_func_entry(ident, func_type);
+    // register func name and func param type
+    // TODO: type inference and is_ptr, should all be handled by symbol table
+    std::vector<bool> is_func_param_ptr;
+    std::vector<std::vector<int>> func_param_array_size;  // optional
+    std::vector<std::string> func_param_type;
+    for (auto &param_ : params) {
+        auto param = (FuncFParamAST *)(param_.get());
+
+        is_func_param_ptr.push_back(param->is_ptr);
+
+        // infer param type
+        std::vector<int> dims;
+        for (auto it_index = param->indexes.begin();
+             it_index != param->indexes.end(); it_index++) {
+            int dim;
+            dynamic_cast<CalcAST *>(it_index->get())
+                ->calc_val(irgen, dim, true);
+            dims.push_back(dim);
+        }
+        func_param_array_size.push_back(dims);
+
+        // record func type str
+        std::string cur_param_type = "i32";
+        for (auto it = dims.rbegin(); it != dims.rend(); it++) {
+            cur_param_type =
+                "[" + cur_param_type + ", " + std::to_string(*it) + "]";
+        }
+        if (param->is_ptr) cur_param_type = "*" + cur_param_type;
+        func_param_type.push_back(cur_param_type);
+    }
+    irgen.symbol_table.insert_func_entry(ident, func_type, is_func_param_ptr);
     out << "fun @" << ident;
 
     // dump param list
@@ -310,13 +345,18 @@ void FuncDefAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
     for (auto &param_ : params) {
         // dump formal parameters
         auto param = (FuncFParamAST *)(param_.get());
-        irgen.symbol_table.insert_var_entry(param->ident);
-        auto param_name = irgen.symbol_table.get_var_name(param->ident);
-        out << "@" << param_name.c_str() + 1;
+        std::string param_name;
 
-        // dump param type
-        assert(param->btype == "int");
-        out << ": i32";
+        if (is_func_param_ptr[cnt_param]) {
+            auto &dims = func_param_array_size[cnt_param];
+            irgen.symbol_table.insert_array_entry(param->ident, dims, true);
+            param_name = irgen.symbol_table.get_array_name(param->ident);
+        } else {
+            irgen.symbol_table.insert_var_entry(param->ident);
+            param_name = irgen.symbol_table.get_var_name(param->ident);
+        }
+        out << "@" << param_name.c_str() + 1;
+        out << ": " << func_param_type[cnt_param];
 
         if (++cnt_param < params.size()) out << ", ";
     }
@@ -338,13 +378,19 @@ void FuncDefAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
     irgen.control_flow.init_entry_block(block_name, out);
 
     // duplicate formal parameters
+    cnt_param = 0;
     for (auto &param_ : params) {
         auto param = (FuncFParamAST *)(param_.get());
-        auto param_name = irgen.symbol_table.get_var_name(param->ident);
-        assert(param->btype == "int");
-        out << "  " << param_name << " = alloc i32" << std::endl;
+        std::string param_name;
+        if (is_func_param_ptr[cnt_param])
+            param_name = irgen.symbol_table.get_array_name(param->ident);
+        else
+            param_name = irgen.symbol_table.get_var_name(param->ident);
+        out << "  " << param_name << " = alloc " << func_param_type[cnt_param]
+            << std::endl;
         out << "  store @" << param_name.c_str() + 1 << ", " << param_name
             << std::endl;
+        cnt_param++;
     }
 
     block->dump_koopa(irgen, out);
@@ -413,7 +459,8 @@ void StmtAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
             auto lval_var_name = irgen.symbol_table.get_var_name(lval_name);
             out << "  store " << r_val << ", " << lval_var_name << std::endl;
         } else if (lval_type == SYMBOL_TABLE_ENTRY_ARRAY) {
-            dynamic_cast<LValAST *>(lval.get())->dump_koopa_parse_indexes(irgen, out);
+            dynamic_cast<LValAST *>(lval.get())
+                ->dump_koopa_parse_indexes(irgen, out);
             std::string ptr_index = irgen.stack_val.top();
             irgen.stack_val.pop();
             out << "  store " << r_val << ", " << ptr_index << std::endl;
@@ -842,18 +889,28 @@ void LValAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
     }
 }
 
-void LValAST::dump_koopa_parse_indexes(IRGenerator &irgen, std::ostream &out) const {
+void LValAST::dump_koopa_parse_indexes(IRGenerator &irgen,
+                                       std::ostream &out) const {
+    // array could be partially parsed
     std::string aliased_name = irgen.symbol_table.get_array_name(ident);
     std::string ptr_index = aliased_name;
     for (auto it_index = indexes.begin(); it_index != indexes.end();
-            it_index++) {
-        // dump the index
+         it_index++) {
+        // dump the index (not necessarily const)
         it_index->get()->dump_koopa(irgen, out);
         auto dim = irgen.stack_val.top();
         irgen.stack_val.pop();
         std::string ptr_tmp = irgen.new_val();
-        out << "  " << ptr_tmp << " = getelemptr " << ptr_index << ", "
-            << dim << std::endl;
+        if (it_index == indexes.begin() &&
+            irgen.symbol_table.is_ptr_array_entry(ident)) {
+            auto ptr_ttmp = irgen.new_val();
+            out << "  " << ptr_ttmp << " = load " << ptr_index << std::endl;
+            out << "  " << ptr_tmp << " = getptr " << ptr_ttmp << ", " << dim
+                << std::endl;
+        } else {
+            out << "  " << ptr_tmp << " = getelemptr " << ptr_index << ", "
+                << dim << std::endl;
+        }
         ptr_index = ptr_tmp;
     }
     irgen.stack_val.push(ptr_index);

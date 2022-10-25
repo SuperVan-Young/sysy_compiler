@@ -370,6 +370,21 @@ FuncFParam
     auto ast = new FuncFParamAST();
     ast->btype = *unique_ptr<string>($1);
     ast->ident = *unique_ptr<string>($2);
+    ast->is_ptr = false;
+    $$ = ast;
+  }
+  | BType IDENT '[' ']' OptionalConstExpIndex {
+    auto ast = new FuncFParamAST();
+    ast->btype = *unique_ptr<string>($1);
+    ast->ident = *unique_ptr<string>($2);
+    ast->is_ptr = true;
+    ExpAST* cur = (ExpAST*)$5;
+    ExpAST* tmp;
+    while (cur != nullptr) {
+      tmp = cur->next;
+      ast->indexes.push_back(unique_ptr<BaseAST>((BaseAST*)cur));
+      cur = tmp;
+    }
     $$ = ast;
   }
   ;

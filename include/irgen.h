@@ -25,9 +25,11 @@ class SymbolTableEntry {
     bool is_const;  // const var
     int val;        // init value of const var
     // func
-    std::string func_type;
+    std::string func_type;                // void or int
+    std::vector<bool> is_func_param_ptr;  // func array type
     // array
-    std::vector<int> array_size;
+    std::vector<int> array_size;  // could be empty
+    bool is_ptr;                  // only occurs for array func param
 };
 
 typedef std::map<std::string, SymbolTableEntry> symbol_table_block_t;
@@ -46,18 +48,21 @@ class SymbolTable {
     // insert new entry
     void insert_var_entry(std::string name);
     void insert_const_var_entry(std::string name, int val);
-    void insert_func_entry(std::string name, std::string func_type);
-    void insert_array_entry(std::string name, std::vector<int> array_size);
+    void insert_func_entry(std::string name, std::string func_type,
+                           std::vector<bool> is_func_param_ptr);
+    void insert_array_entry(std::string name, std::vector<int> array_size,
+                            bool is_ptr = false);
 
     // get entry info
     bool is_global_symbol_table();
     symbol_table_entry_type_t get_entry_type(std::string name);
-    bool is_global_var_entry(std::string name);
     bool is_const_var_entry(std::string name);
     int get_const_var_val(std::string name);
     std::string get_var_name(std::string name);
     std::string get_array_name(std::string name);
     std::string get_func_entry_type(std::string name);
+    bool is_func_param_ptr(std::string name, int index);
+    bool is_ptr_array_entry(std::string name);
 
     // basic block stacking
     void push_block();
