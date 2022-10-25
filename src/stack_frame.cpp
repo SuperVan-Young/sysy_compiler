@@ -30,11 +30,10 @@ StackFrame::StackFrame(koopa_raw_function_t func) {
 
         for (size_t j = 0; j < val_slice.len; j++) {
             auto val = (koopa_raw_value_t)val_slice.buffer[j];
-            if (val->ty->tag == KOOPA_RTT_UNIT) continue;
 
             StackInfo stack_info;
             stack_info.offset = length;
-            length += 4;
+            length += get_koopa_raw_value_size(val->ty);
             entries.insert(std::make_pair(val, stack_info));
         }
     }

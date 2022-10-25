@@ -104,6 +104,7 @@ class TargetCodeGenerator {
                          std::string reg_2);
     void dump_lw(std::string reg, int offset, std::string base);
     void dump_sw(std::string reg, int offset);
+    bool load_value_to_reg(koopa_raw_value_t value, std::string reg);
 
     int dump_koopa_raw_slice(koopa_raw_slice_t slice);
     int dump_koopa_raw_function(koopa_raw_function_t func);
@@ -113,9 +114,12 @@ class TargetCodeGenerator {
     int dump_koopa_raw_value_global_alloc(koopa_raw_value_t value);
     int dump_koopa_raw_value_load(koopa_raw_value_t value);
     int dump_koopa_raw_value_store(koopa_raw_value_t value);
+    int dump_koopa_raw_value_get_elem_ptr(koopa_raw_value_t value);
     int dump_koopa_raw_value_binary(koopa_raw_value_t value);
     int dump_koopa_raw_value_branch(koopa_raw_value_t value);
     int dump_koopa_raw_value_jump(koopa_raw_value_t value);
     int dump_koopa_raw_value_call(koopa_raw_value_t value);
     int dump_koopa_raw_value_return(koopa_raw_value_t value);
 };
+
+int get_koopa_raw_value_size(koopa_raw_type_t ty);
