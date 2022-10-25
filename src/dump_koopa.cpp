@@ -817,10 +817,33 @@ void UnaryExpAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
     } else if (type == UNARY_EXP_AST_TYPE_FUNC) {
         // dump all the exp
         std::vector<std::string> rparams;
+        int cnt_param = 0;
         for (auto &param : params) {
-            param->dump_koopa(irgen, out);
+            if (irgen.symbol_table.is_func_param_ptr(ident, cnt_param)) {
+                auto exp = dynamic_cast<ExpAST *>(param.get());
+                assert(exp);
+                auto prim_exp =
+                    dynamic_cast<PrimaryExpAST *>(exp->binary_exp.get());
+                assert(prim_exp);
+                assert(prim_exp->type == PRIMARY_EXP_AST_TYPE_LVAL);
+                dynamic_cast<LValAST *>(prim_exp->lval.get())
+                    ->dump_koopa_parse_indexes(irgen, out);
+
+                // get first element ptr
+                auto ptr_arr = irgen.stack_val.top();
+                irgen.stack_val.pop();
+                auto ptr_first_elem = irgen.new_val();
+                out << "  " << ptr_first_elem << " = getelemptr " << ptr_arr
+                    << ", 0" << std::endl;
+                irgen.stack_val.push(ptr_first_elem);
+
+            } else {
+                param->dump_koopa(irgen, out);
+            }
             rparams.push_back(irgen.stack_val.top());
             irgen.stack_val.pop();
+
+            cnt_param++;
         }
 
         assert(ident != "");
@@ -836,7 +859,7 @@ void UnaryExpAST::dump_koopa(IRGenerator &irgen, std::ostream &out) const {
             std::cerr << "Unknown func type: " << func_type << std::endl;
         }
         out << "call @" << ident << "(";
-        int cnt_param = 0;
+        cnt_param = 0;
         for (auto &param : rparams) {
             out << param;
             if (++cnt_param != rparams.size()) out << ", ";
