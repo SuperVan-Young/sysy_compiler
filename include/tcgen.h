@@ -104,6 +104,8 @@ class TargetCodeGenerator {
                          std::string reg_2);
     void dump_lw(std::string reg, int offset, std::string base);
     void dump_sw(std::string reg, int offset);
+    void dump_alloc_initializer(koopa_raw_value_t init, int offset);
+    void dump_global_alloc_initializer(koopa_raw_value_t init);
     bool load_value_to_reg(koopa_raw_value_t value, std::string reg);
 
     int dump_koopa_raw_slice(koopa_raw_slice_t slice);

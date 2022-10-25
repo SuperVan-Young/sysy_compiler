@@ -18,7 +18,7 @@
 # autotest -riscv -s lv7 /root/compiler
 
 # autotest -koopa -s lv8 /root/compiler
-autotest -riscv -s lv8 /root/compiler
+# autotest -riscv -s lv8 /root/compiler
 
-autotest -koopa -s lv9 /root/compiler
+# autotest -koopa -s lv9 /root/compiler
 autotest -riscv -s lv9 /root/compiler

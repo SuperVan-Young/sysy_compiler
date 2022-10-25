@@ -15,7 +15,7 @@ StackFrame::StackFrame(koopa_raw_function_t func) {
         for (size_t j = 0; j < val_slice.len; j++) {
             auto val = (koopa_raw_value_t)val_slice.buffer[j];
             if (val->kind.tag != KOOPA_RVT_CALL) continue;
-            
+
             auto param_len = int(val->kind.data.call.args.len);
             length = std::max(4 * (param_len - 8), length);
             is_leaf_function = false;
@@ -33,7 +33,14 @@ StackFrame::StackFrame(koopa_raw_function_t func) {
 
             StackInfo stack_info;
             stack_info.offset = length;
-            length += get_koopa_raw_value_size(val->ty);
+            if (val->kind.tag == KOOPA_RVT_ALLOC) {
+                assert(val->ty->tag == KOOPA_RTT_POINTER);
+                stack_info.size =
+                    get_koopa_raw_value_size(val->ty->data.pointer.base);
+            } else {
+                stack_info.size = get_koopa_raw_value_size(val->ty);
+            }
+            length += stack_info.size;
             entries.insert(std::make_pair(val, stack_info));
         }
     }
@@ -53,8 +60,7 @@ int StackFrame::get_offset(koopa_raw_value_t val) {
     assert(entries.find(val) != entries.end());
     auto info = entries[val];
     auto offset = info.offset;
-    if (offset < 0)
-        offset = length + offset;
+    if (offset < 0) offset = length + offset;
     return offset;
 }
 
@@ -62,7 +68,6 @@ int StackFrame::get_register_offset(std::string reg) {
     assert(saved_registers.find(reg) != saved_registers.end());
     auto info = saved_registers[reg];
     auto offset = info.offset;
-    if (offset < 0)
-        offset = length + offset;
+    if (offset < 0) offset = length + offset;
     return offset;
 }
