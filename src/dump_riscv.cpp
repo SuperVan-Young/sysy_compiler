@@ -178,7 +178,7 @@ bool TargetCodeGenerator::load_value_to_reg(koopa_raw_value_t value,
 
 void TargetCodeGenerator::dump_alloc_initializer(koopa_raw_value_t init,
                                                  int offset) {
-    // std::cerr << "dump alloc initializer: " << offset << std::endl;                                            
+    // std::cerr << "dump alloc initializer: " << offset << std::endl;
 
     // TODO: optimize dump sw
     auto init_type = init->kind.tag;
@@ -412,7 +412,7 @@ int TargetCodeGenerator::dump_koopa_raw_value_load(koopa_raw_value_t value) {
     auto src = value->kind.data.load.src;
     assert(load_value_to_reg(src, reg));
 
-    dump_riscv_inst("lw", reg, "0(" + reg +")");
+    dump_riscv_inst("lw", reg, "0(" + reg + ")");
 
     // record value result onto stack
     auto val_offset = runtime_stack.top().get_koopa_value(value).offset;
@@ -432,7 +432,8 @@ int TargetCodeGenerator::dump_koopa_raw_value_store(koopa_raw_value_t value) {
         auto offset = runtime_stack.top().get_alloc_memory(dst).offset;
         dump_alloc_initializer(src, offset);
 
-    } else if (dst_base_type->tag == KOOPA_RTT_INT32) {
+    } else if (dst_base_type->tag == KOOPA_RTT_INT32 ||
+               dst_base_type->tag == KOOPA_RTT_POINTER) {
         std::string src_reg = "t0";  // what need to be stored
         if (src->kind.tag == KOOPA_RVT_FUNC_ARG_REF) {
             auto index = src->kind.data.func_arg_ref.index;
@@ -453,7 +454,7 @@ int TargetCodeGenerator::dump_koopa_raw_value_store(koopa_raw_value_t value) {
         std::string dst_reg = "t6";
         assert(load_value_to_reg(dst, dst_reg));
 
-        dump_riscv_inst("sw", src_reg, "0(" + dst_reg +")");
+        dump_riscv_inst("sw", src_reg, "0(" + dst_reg + ")");
 
     } else {
         std::cerr << "Store: invalid dst base type" << std::endl;
