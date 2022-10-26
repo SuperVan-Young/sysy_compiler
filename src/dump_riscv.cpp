@@ -414,9 +414,9 @@ int TargetCodeGenerator::dump_koopa_raw_value_load(koopa_raw_value_t value) {
 
     dump_riscv_inst("lw", reg, "0(" + reg +")");
 
-    // store onto stack
-    auto dst_offset = runtime_stack.top().get_koopa_value(value).offset;
-    dump_sw(reg, dst_offset);
+    // record value result onto stack
+    auto val_offset = runtime_stack.top().get_koopa_value(value).offset;
+    dump_sw(reg, val_offset);
     return 0;
 }
 
@@ -428,42 +428,33 @@ int TargetCodeGenerator::dump_koopa_raw_value_store(koopa_raw_value_t value) {
     auto dst_base_type = dst->ty->data.pointer.base;
 
     if (dst_base_type->tag == KOOPA_RTT_ARRAY) {
-        // dump to alloced memory, not dst itself!
+        // local array initialization
         auto offset = runtime_stack.top().get_alloc_memory(dst).offset;
         dump_alloc_initializer(src, offset);
 
     } else if (dst_base_type->tag == KOOPA_RTT_INT32) {
-        std::string reg = "t0";
+        std::string src_reg = "t0";  // what need to be stored
         if (src->kind.tag == KOOPA_RVT_FUNC_ARG_REF) {
             auto index = src->kind.data.func_arg_ref.index;
             if (index < 8) {
-                reg = "a" + std::to_string(index);
+                src_reg = "a" + std::to_string(index);
             } else {
                 // assume s0 has been set up
                 int offset = (index - 8) * 4;
-                dump_lw(reg, offset, "s0");
+                dump_lw(src_reg, offset, "s0");
             }
         } else if (src->kind.tag == KOOPA_RVT_ZERO_INIT) {
-            dump_riscv_inst("li", reg, std::to_string(0));
+            dump_riscv_inst("li", src_reg, std::to_string(0));
         } else {
-            assert(load_value_to_reg(src, reg));
+            assert(load_value_to_reg(src, src_reg));
         }
 
-        // dump to dst
-        if (dst->kind.tag == KOOPA_RVT_ALLOC ||
-            dst->kind.tag == KOOPA_RVT_GET_ELEM_PTR ||
-            dst->kind.tag == KOOPA_RVT_GET_PTR) {
-            auto dst_offset = runtime_stack.top().get_alloc_memory(dst).offset;
-            dump_sw(reg, dst_offset);
-        } else if (dst->kind.tag == KOOPA_RVT_GLOBAL_ALLOC) {
-            std::string tmp_reg = "t6";  // no loading in the following
-            dump_riscv_inst("la", tmp_reg, dst->name + 1);
-            dump_riscv_inst("sw", reg, "0(" + tmp_reg + ")");
-        } else {
-            auto tag = to_koopa_raw_value_tag(dst->kind.tag);
-            std::cerr << "Store: invalid type " << tag << std::endl;
-            assert(false);
-        }
+        // load dst address
+        std::string dst_reg = "t6";
+        assert(load_value_to_reg(dst, dst_reg));
+
+        dump_riscv_inst("sw", src_reg, "0(" + dst_reg +")");
+
     } else {
         std::cerr << "Store: invalid dst base type" << std::endl;
         assert(false);
