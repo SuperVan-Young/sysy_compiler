@@ -77,19 +77,19 @@ class StackFrame {
    private:
     std::map<std::string, StackInfo> saved_registers;
     std::map<koopa_raw_value_t, StackInfo> koopa_values;
-    std::map<std::string, StackInfo> alloc_memory;
+    std::map<koopa_raw_value_t, StackInfo> alloc_memory;
     int length = 0;
 
     void _insert_saved_registers(std::string name, StackInfo info);
     void _insert_koopa_value(koopa_raw_value_t val, StackInfo info);
-    void _insert_alloc_memory(std::string name, StackInfo info);
+    void _insert_alloc_memory(koopa_raw_value_t val, StackInfo info);
 
    public:
     StackFrame(koopa_raw_function_t func);
 
     StackInfo get_saved_register(std::string name);
     StackInfo get_koopa_value(koopa_raw_value_t val);
-    StackInfo get_alloc_memory(std::string name);
+    StackInfo get_alloc_memory(koopa_raw_value_t val);
     
     int get_length() { return length; }
     friend TargetCodeGenerator;
@@ -123,6 +123,7 @@ class TargetCodeGenerator {
     int dump_koopa_raw_basic_block(koopa_raw_basic_block_t bb);
     int dump_koopa_raw_value(koopa_raw_value_t value);
 
+    int dump_koopa_raw_value_alloc(koopa_raw_value_t value);
     int dump_koopa_raw_value_global_alloc(koopa_raw_value_t value);
     int dump_koopa_raw_value_load(koopa_raw_value_t value);
     int dump_koopa_raw_value_store(koopa_raw_value_t value);

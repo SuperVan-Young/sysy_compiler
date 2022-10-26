@@ -36,11 +36,10 @@ StackFrame::StackFrame(koopa_raw_function_t func) {
             _insert_koopa_value(val, val_info);
 
             if (val->kind.tag == KOOPA_RVT_ALLOC) {
-                std::cerr << val->name << std::endl;
                 assert(val->ty->tag == KOOPA_RTT_POINTER);
                 StackInfo alloc_info;
                 alloc_info.size = get_koopa_raw_value_size(val->ty->data.pointer.base);
-                _insert_alloc_memory(val->name, alloc_info);
+                _insert_alloc_memory(val, alloc_info);
 
             }
         }
@@ -72,12 +71,12 @@ void StackFrame::_insert_koopa_value(koopa_raw_value_t val, StackInfo info) {
     koopa_values.insert(std::make_pair(val, info));
 }
 
-void StackFrame::_insert_alloc_memory(std::string name, StackInfo info) {
+void StackFrame::_insert_alloc_memory(koopa_raw_value_t val, StackInfo info) {
     info.type = STACK_INFO_ALLOC_MEMORY;
-    assert(alloc_memory.find(name) == alloc_memory.end());
+    assert(alloc_memory.find(val) == alloc_memory.end());
     info.offset = length;
     length += info.size;
-    alloc_memory.insert(std::make_pair(name, info));
+    alloc_memory.insert(std::make_pair(val, info));
 }
 
 // Get offset from current sp
@@ -96,9 +95,9 @@ StackInfo StackFrame::get_koopa_value(koopa_raw_value_t val) {
     return info;
 }
 
-StackInfo StackFrame::get_alloc_memory(std::string name) {
-    assert(alloc_memory.find(name) != alloc_memory.end());
-    auto info = alloc_memory[name];
+StackInfo StackFrame::get_alloc_memory(koopa_raw_value_t val) {
+    assert(alloc_memory.find(val) != alloc_memory.end());
+    auto info = alloc_memory[val];
     if (info.offset < 0) info.offset += length;
     return info;
 }
