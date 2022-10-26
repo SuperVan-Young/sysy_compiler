@@ -60,27 +60,37 @@ class RegisterFile {
     }
 };
 
+typedef enum {
+    STACK_INFO_SAVED_REGISTER,
+    STACK_INFO_KOOPA_VALUE,
+    STACK_INFO_ALLOC_MEMORY,
+} stack_info_type_t;
+
 class StackInfo {
    public:
+    stack_info_type_t type;
     int offset;
     int size = 4;  // default size
-
-    StackInfo() {}
-    StackInfo(int offset_) : offset(offset_) {}
 };
 
 class StackFrame {
    private:
     std::map<std::string, StackInfo> saved_registers;
-    std::map<koopa_raw_value_t, StackInfo> entries;
+    std::map<koopa_raw_value_t, StackInfo> koopa_values;
+    std::map<std::string, StackInfo> alloc_memory;
     int length = 0;
 
-   public:
-    bool is_returned = false;
+    void _insert_saved_registers(std::string name, StackInfo info);
+    void _insert_koopa_value(koopa_raw_value_t val, StackInfo info);
+    void _insert_alloc_memory(std::string name, StackInfo info);
 
+   public:
     StackFrame(koopa_raw_function_t func);
-    int get_offset(koopa_raw_value_t val);
-    int get_register_offset(std::string reg);
+
+    StackInfo get_saved_register(std::string name);
+    StackInfo get_koopa_value(koopa_raw_value_t val);
+    StackInfo get_alloc_memory(std::string name);
+    
     int get_length() { return length; }
     friend TargetCodeGenerator;
 };

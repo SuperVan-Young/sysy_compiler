@@ -166,7 +166,7 @@ bool TargetCodeGenerator::load_value_to_reg(koopa_raw_value_t value,
                value->kind.tag == KOOPA_RVT_GET_PTR ||
                value->kind.tag == KOOPA_RVT_BINARY ||
                value->kind.tag == KOOPA_RVT_CALL) {
-        auto offset = runtime_stack.top().get_offset(value);
+        auto offset = runtime_stack.top().get_koopa_value(value).offset;
         dump_lw(reg, offset);
     } else if (value->kind.tag == KOOPA_RVT_GLOBAL_ALLOC) {
         dump_riscv_inst("la", reg, value->name + 1);
@@ -396,7 +396,7 @@ int TargetCodeGenerator::dump_koopa_raw_value_binary(koopa_raw_value_t value) {
     }
 
     // write the result
-    auto offset = runtime_stack.top().get_offset(value);
+    auto offset = runtime_stack.top().get_koopa_value(value).offset;
     dump_sw(reg, offset);
 
     return 0;
@@ -410,7 +410,7 @@ int TargetCodeGenerator::dump_koopa_raw_value_load(koopa_raw_value_t value) {
     assert(load_value_to_reg(src, reg));
 
     // store onto stack
-    auto dst_offset = runtime_stack.top().get_offset(value);
+    auto dst_offset = runtime_stack.top().get_koopa_value(value).offset;
     dump_sw(reg, dst_offset);
     return 0;
 }
@@ -423,7 +423,7 @@ int TargetCodeGenerator::dump_koopa_raw_value_store(koopa_raw_value_t value) {
     auto dst_base_type = dst->ty->data.pointer.base;
 
     if (dst_base_type->tag == KOOPA_RTT_ARRAY) {
-        auto offset = runtime_stack.top().get_offset(dst);
+        auto offset = runtime_stack.top().get_koopa_value(dst).offset;
         dump_alloc_initializer(src, offset);
 
     } else if (dst_base_type->tag == KOOPA_RTT_INT32) {
@@ -444,8 +444,9 @@ int TargetCodeGenerator::dump_koopa_raw_value_store(koopa_raw_value_t value) {
         }
 
         // dump to dst
-        if (dst->kind.tag == KOOPA_RVT_ALLOC) {
-            auto dst_offset = runtime_stack.top().get_offset(dst);
+        if (dst->kind.tag == KOOPA_RVT_ALLOC ||
+            dst->kind.tag == KOOPA_RVT_GET_ELEM_PTR) {
+            auto dst_offset = runtime_stack.top().get_koopa_value(dst).offset;
             dump_sw(reg, dst_offset);
         } else if (dst->kind.tag == KOOPA_RVT_GLOBAL_ALLOC) {
             std::string tmp_reg = "t6";  // no loading in the following
@@ -533,7 +534,7 @@ int TargetCodeGenerator::dump_koopa_raw_value_call(koopa_raw_value_t value) {
     // set return value if there is
     auto ret_type = value->ty->tag;
     if (ret_type == KOOPA_RTT_INT32) {
-        auto offset = runtime_stack.top().get_offset(value);
+        auto offset = runtime_stack.top().get_koopa_value(value).offset;
         dump_sw("a0", offset);
     } else if (ret_type == KOOPA_RTT_UNIT) {
     } else {
@@ -564,9 +565,15 @@ int TargetCodeGenerator::dump_koopa_raw_value_get_elem_ptr(
     std::string index_reg = "t1";
     std::string elem_size_reg = "t2";
 
-    // load base ptr
+    // load base ptr address
     auto src = value->kind.data.get_elem_ptr.src;
-    assert(load_value_to_reg(src, base_reg));
+    auto src_offset = runtime_stack.top().get_koopa_value(src).offset;
+    if (src_offset <= 2047) {
+        dump_riscv_inst("addi", base_reg, "sp", std::to_string(src_offset));
+    } else {
+        dump_riscv_inst("li", base_reg, std::to_string(src_offset));
+        dump_riscv_inst("add", base_reg, base_reg, "sp");
+    }
 
     // calculate index
     auto index = value->kind.data.get_elem_ptr.index;
@@ -583,7 +590,7 @@ int TargetCodeGenerator::dump_koopa_raw_value_get_elem_ptr(
     dump_riscv_inst("mul", index_reg, index_reg, elem_size_reg);
     dump_riscv_inst("add", base_reg, base_reg, index_reg);
 
-    auto dst_offset = runtime_stack.top().get_offset(value);
+    auto dst_offset = runtime_stack.top().get_koopa_value(value).offset;
     dump_sw(base_reg, dst_offset);
     return 0;
 }
@@ -593,9 +600,15 @@ int TargetCodeGenerator::dump_koopa_raw_value_get_ptr(koopa_raw_value_t value) {
     std::string index_reg = "t1";
     std::string elem_size_reg = "t2";
 
-    // load base ptr
+    // load base ptr address
     auto src = value->kind.data.get_elem_ptr.src;
-    assert(load_value_to_reg(src, base_reg));
+    auto src_offset = runtime_stack.top().get_koopa_value(src).offset;
+    if (src_offset <= 2047) {
+        dump_riscv_inst("addi", base_reg, "sp", std::to_string(src_offset));
+    } else {
+        dump_riscv_inst("li", base_reg, std::to_string(src_offset));
+        dump_riscv_inst("add", base_reg, base_reg, "sp");
+    }
 
     // calculate index
     auto index = value->kind.data.get_elem_ptr.index;
@@ -610,7 +623,7 @@ int TargetCodeGenerator::dump_koopa_raw_value_get_ptr(koopa_raw_value_t value) {
     dump_riscv_inst("mul", index_reg, index_reg, elem_size_reg);
     dump_riscv_inst("add", base_reg, base_reg, index_reg);
 
-    auto dst_offset = runtime_stack.top().get_offset(value);
+    auto dst_offset = runtime_stack.top().get_koopa_value(value).offset;
     dump_sw(base_reg, dst_offset);
     return 0;
 }
