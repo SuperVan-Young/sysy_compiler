@@ -60,27 +60,37 @@ class RegisterFile {
     }
 };
 
+typedef enum {
+    STACK_INFO_SAVED_REGISTER,
+    STACK_INFO_KOOPA_VALUE,
+    STACK_INFO_ALLOC_MEMORY,
+} stack_info_type_t;
+
 class StackInfo {
    public:
+    stack_info_type_t type;
     int offset;
     int size = 4;  // default size
-
-    StackInfo() {}
-    StackInfo(int offset_) : offset(offset_) {}
 };
 
 class StackFrame {
    private:
     std::map<std::string, StackInfo> saved_registers;
-    std::map<koopa_raw_value_t, StackInfo> entries;
+    std::map<koopa_raw_value_t, StackInfo> koopa_values;
+    std::map<koopa_raw_value_t, StackInfo> alloc_memory;
     int length = 0;
 
-   public:
-    bool is_returned = false;
+    void _insert_saved_registers(std::string name, StackInfo info);
+    void _insert_koopa_value(koopa_raw_value_t val, StackInfo info);
+    void _insert_alloc_memory(koopa_raw_value_t val, StackInfo info);
 
+   public:
     StackFrame(koopa_raw_function_t func);
-    int get_offset(koopa_raw_value_t val);
-    int get_register_offset(std::string reg);
+
+    StackInfo get_saved_register(std::string name);
+    StackInfo get_koopa_value(koopa_raw_value_t val);
+    StackInfo get_alloc_memory(koopa_raw_value_t val);
+    
     int get_length() { return length; }
     friend TargetCodeGenerator;
 };
@@ -104,18 +114,26 @@ class TargetCodeGenerator {
                          std::string reg_2);
     void dump_lw(std::string reg, int offset, std::string base);
     void dump_sw(std::string reg, int offset);
+    void dump_alloc_initializer(koopa_raw_value_t init, int offset);
+    void dump_global_alloc_initializer(koopa_raw_value_t init);
+    bool load_value_to_reg(koopa_raw_value_t value, std::string reg);
 
     int dump_koopa_raw_slice(koopa_raw_slice_t slice);
     int dump_koopa_raw_function(koopa_raw_function_t func);
     int dump_koopa_raw_basic_block(koopa_raw_basic_block_t bb);
     int dump_koopa_raw_value(koopa_raw_value_t value);
 
+    int dump_koopa_raw_value_alloc(koopa_raw_value_t value);
     int dump_koopa_raw_value_global_alloc(koopa_raw_value_t value);
     int dump_koopa_raw_value_load(koopa_raw_value_t value);
     int dump_koopa_raw_value_store(koopa_raw_value_t value);
+    int dump_koopa_raw_value_get_ptr(koopa_raw_value_t value);
+    int dump_koopa_raw_value_get_elem_ptr(koopa_raw_value_t value);
     int dump_koopa_raw_value_binary(koopa_raw_value_t value);
     int dump_koopa_raw_value_branch(koopa_raw_value_t value);
     int dump_koopa_raw_value_jump(koopa_raw_value_t value);
     int dump_koopa_raw_value_call(koopa_raw_value_t value);
     int dump_koopa_raw_value_return(koopa_raw_value_t value);
 };
+
+int get_koopa_raw_value_size(koopa_raw_type_t ty);

@@ -89,16 +89,25 @@ bool PrimaryExpAST::calc_val(IRGenerator &irgen, int &result,
 bool LValAST::calc_val(IRGenerator &irgen, int &result, bool calc_const) const {
     // When using this lval, it should have already existed in symbol table,
     // No matter you're assigning a const or var lval.
-    if (calc_const) {
-        // if this is const calculation, you should only use const symbol,
-        // and the symbol's value must have been initialized
-        assert(irgen.symbol_table.is_const_var_entry(ident));
-        result = irgen.symbol_table.get_const_var_val(ident);
-        return true;
+    auto type = irgen.symbol_table.get_entry_type(ident);
+    if (type == SYMBOL_TABLE_ENTRY_VAR) {
+        if (calc_const) {
+            // if this is const calculation, you should only use const symbol,
+            // and the symbol's value must have been initialized
+            assert(irgen.symbol_table.is_const_var_entry(ident));
+            result = irgen.symbol_table.get_const_var_val(ident);
+            return true;
+        } else {
+            // otherwise, compiler checks constness and return.
+            // For vardef, this provides optimization chance.
+            result = irgen.symbol_table.get_const_var_val(ident);
+            return irgen.symbol_table.is_const_var_entry(ident);
+        }
+    } else if (type == SYMBOL_TABLE_ENTRY_ARRAY) {
+        // array element doesn't involve in calculating const value
+        return false;
     } else {
-        // otherwise, compiler checks constness and return.
-        // For vardef, this provides optimization chance.
-        result = irgen.symbol_table.get_const_var_val(ident);
-        return irgen.symbol_table.is_const_var_entry(ident);
+        std::cerr << "LValAST: invalid type!" << std::endl;
+        assert(false);
     }
 }

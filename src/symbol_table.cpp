@@ -86,19 +86,21 @@ void SymbolTable::insert_const_var_entry(std::string name, int val) {
     table->insert(std::make_pair(name, entry));
 }
 
-void SymbolTable::insert_func_entry(std::string name, std::string func_type) {
+void SymbolTable::insert_func_entry(std::string name, std::string func_type,
+                                    std::vector<bool> is_func_param_ptr) {
     assert(global_table.find(name) == global_table.end());
 
     SymbolTableEntry entry;
     entry.type = SYMBOL_TABLE_ENTRY_FUNC;
     entry.func_type = func_type;
     assert(func_type == "int" || func_type == "void");
+    entry.is_func_param_ptr = is_func_param_ptr;
 
     global_table.insert(std::make_pair(name, entry));
 }
 
 void SymbolTable::insert_array_entry(std::string name,
-                                     std::vector<int> array_size) {
+                                     std::vector<int> array_size, bool is_ptr) {
     symbol_table_block_t *table = nullptr;
     bool is_local = _get_local_table(table);
     assert(table->find(name) == table->end());  // no duplication
@@ -114,27 +116,20 @@ void SymbolTable::insert_array_entry(std::string name,
     }
     entry.is_const = false;
     entry.array_size = array_size;
+    entry.is_ptr = is_ptr;
 
     table->insert(std::make_pair(name, entry));
 }
 
 // fetch entry info
 
-bool SymbolTable::is_global_var_entry(std::string name) {
-    for (auto it_b = block_stack.rbegin(); it_b != block_stack.rend(); it_b++) {
-        auto it_entry = it_b->find(name);
-        if (it_entry != it_b->end()) {
-            assert(it_entry->second.type == SYMBOL_TABLE_ENTRY_VAR);
-            return false;
-        }
-    }
-    auto it_entry = global_table.find(name);
-    if (it_entry != global_table.end()) {
-        assert(it_entry->second.type == SYMBOL_TABLE_ENTRY_VAR);
-        return true;
-    }
-    assert(false);
+symbol_table_entry_type_t SymbolTable::get_entry_type(std::string name) {
+    SymbolTableEntry *entry = nullptr;
+    assert(_get_entry(name, entry));
+    return entry->type;
 }
+
+bool SymbolTable::is_global_symbol_table() { return (block_stack.size() == 0); }
 
 bool SymbolTable::is_const_var_entry(std::string name) {
     SymbolTableEntry *entry = nullptr;
@@ -165,11 +160,54 @@ std::string SymbolTable::get_var_name(std::string name) {
     return ret;
 }
 
+std::string SymbolTable::get_array_name(std::string name) {
+    SymbolTableEntry *entry = nullptr;
+    assert(_get_entry(name, entry));
+    assert(entry->type == SYMBOL_TABLE_ENTRY_ARRAY);
+    std::string ret = "";
+    if (entry->is_named)
+        ret += "@";
+    else
+        ret += "%";
+    ret += name;
+    if (entry->alias >= 0) ret += ("_" + std::to_string(entry->alias));
+    return ret;
+}
+
 std::string SymbolTable::get_func_entry_type(std::string name) {
     auto it_entry = global_table.find(name);
     assert(it_entry != global_table.end());
     assert(it_entry->second.type == SYMBOL_TABLE_ENTRY_FUNC);
     return it_entry->second.func_type;
+}
+
+bool SymbolTable::is_func_param_ptr(std::string name, int index) {
+    auto it_entry = global_table.find(name);
+    assert(it_entry != global_table.end());
+    assert(it_entry->second.type == SYMBOL_TABLE_ENTRY_FUNC);
+    assert(index < it_entry->second.is_func_param_ptr.size());
+    return it_entry->second.is_func_param_ptr[index];
+}
+
+bool SymbolTable::is_ptr_array_entry(std::string name) {
+    SymbolTableEntry *entry = nullptr;
+    assert(_get_entry(name, entry));
+    assert(entry->type == SYMBOL_TABLE_ENTRY_ARRAY);
+    return entry->is_ptr;
+}
+
+std::string SymbolTable::get_array_entry_type(std::string name) {
+    SymbolTableEntry *entry = nullptr;
+    assert(_get_entry(name, entry));
+    assert(entry->type == SYMBOL_TABLE_ENTRY_ARRAY);
+    std::string type = "i32";
+    for (auto it_index = entry->array_size.rbegin();
+         it_index != entry->array_size.rend(); it_index++) {
+        type = "[" + type + ", " + std::to_string(*it_index) + "]";
+    }
+    if (entry->is_ptr)
+        type = "*" + type;
+    return type;
 }
 
 // basic block stacking

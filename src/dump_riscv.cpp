@@ -22,7 +22,28 @@ int TargetCodeGenerator::dump_riscv() {
     return ret;
 }
 
+// helper functions
+
+int get_koopa_raw_value_size(koopa_raw_type_t ty) {
+    if (ty->tag == KOOPA_RTT_INT32) {
+        return 4;
+    } else if (ty->tag == KOOPA_RTT_UNIT) {
+        return 0;
+    } else if (ty->tag == KOOPA_RTT_ARRAY) {
+        int base = get_koopa_raw_value_size(ty->data.array.base);
+        int len = ty->data.array.len;
+        return base * len;
+    } else if (ty->tag == KOOPA_RTT_POINTER) {
+        return 4;
+    } else if (ty->tag == KOOPA_RTT_FUNCTION) {
+        assert(false);
+    } else {
+        assert(false);
+    }
+}
+
 // some useful debugging function
+
 std::string to_koopa_raw_value_tag(koopa_raw_value_tag_t tag) {
     switch (tag) {
         case KOOPA_RVT_INTEGER:
@@ -130,6 +151,88 @@ void TargetCodeGenerator::dump_sw(std::string reg, int offset) {
     }
 }
 
+// load symbol / integer value to a given register
+// This operation is not necessarily successful,
+// caller should handle the exceptions
+bool TargetCodeGenerator::load_value_to_reg(koopa_raw_value_t value,
+                                            std::string reg) {
+    if (value->kind.tag == KOOPA_RVT_INTEGER) {
+        // integer
+        auto int_val = std::to_string(value->kind.data.integer.value);
+        dump_riscv_inst("li", reg, int_val);
+    } else if (value->kind.tag == KOOPA_RVT_ALLOC ||
+               value->kind.tag == KOOPA_RVT_LOAD ||
+               value->kind.tag == KOOPA_RVT_GET_ELEM_PTR ||
+               value->kind.tag == KOOPA_RVT_GET_PTR ||
+               value->kind.tag == KOOPA_RVT_BINARY ||
+               value->kind.tag == KOOPA_RVT_CALL) {
+        auto offset = runtime_stack.top().get_koopa_value(value).offset;
+        dump_lw(reg, offset);
+    } else if (value->kind.tag == KOOPA_RVT_GLOBAL_ALLOC) {
+        dump_riscv_inst("la", reg, value->name + 1);
+    } else {
+        return false;
+    }
+    return true;
+}
+
+void TargetCodeGenerator::dump_alloc_initializer(koopa_raw_value_t init,
+                                                 int offset) {
+    // std::cerr << "dump alloc initializer: " << offset << std::endl;
+
+    // TODO: optimize dump sw
+    auto init_type = init->kind.tag;
+    if (init_type == KOOPA_RVT_ZERO_INIT) {
+        int init_size = get_koopa_raw_value_size(init->ty);
+        assert(init_size > 0);
+        for (int i = 0; i < init_size; i += 4) {
+            dump_sw("zero", offset + i);
+        }
+    } else if (init_type == KOOPA_RVT_INTEGER) {
+        auto int_val = init->kind.data.integer.value;
+        if (int_val == 0) {
+            dump_sw("zero", offset);
+        } else {
+            dump_riscv_inst("li", "t0", std::to_string(int_val));
+            dump_sw("t0", offset);
+        }
+    } else if (init_type == KOOPA_RVT_AGGREGATE) {
+        auto elems = init->kind.data.aggregate.elems;
+        for (int i = 0; i < elems.len; i++) {
+            auto sub_init = (koopa_raw_value_t)elems.buffer[i];
+            auto sub_init_size = get_koopa_raw_value_size(sub_init->ty);
+            dump_alloc_initializer(sub_init, offset + i * sub_init_size);
+        }
+    } else {
+        auto tag = to_koopa_raw_value_tag(init_type);
+        std::cerr << "Dump initializer: unknown tag " << tag << std::endl;
+        assert(false);
+    }
+}
+
+// dump initializer recursively
+void TargetCodeGenerator::dump_global_alloc_initializer(
+    koopa_raw_value_t init) {
+    auto init_type = init->kind.tag;
+    if (init_type == KOOPA_RVT_ZERO_INIT) {
+        int init_size = get_koopa_raw_value_size(init->ty);
+        assert(init_size > 0);
+        out << "  .zero " << init_size << std::endl;
+    } else if (init_type == KOOPA_RVT_INTEGER) {
+        out << "  .word " << init->kind.data.integer.value << std::endl;
+    } else if (init_type == KOOPA_RVT_AGGREGATE) {
+        auto elems = init->kind.data.aggregate.elems;
+        for (int i = 0; i < elems.len; i++) {
+            auto sub_init = (koopa_raw_value_t)elems.buffer[i];
+            dump_global_alloc_initializer(sub_init);
+        }
+    } else {
+        auto tag = to_koopa_raw_value_tag(init_type);
+        std::cerr << "Dump initializer: unknown tag " << tag << std::endl;
+        assert(false);
+    }
+}
+
 // dump koopa data structure
 
 int TargetCodeGenerator::dump_koopa_raw_slice(koopa_raw_slice_t slice) {
@@ -209,13 +312,17 @@ int TargetCodeGenerator::dump_koopa_raw_value(koopa_raw_value_t value) {
     else if (tag == KOOPA_RVT_RETURN)
         return dump_koopa_raw_value_return(value);
     else if (tag == KOOPA_RVT_ALLOC)
-        return 0;  // needless to dump
+        return dump_koopa_raw_value_alloc(value);
     else if (tag == KOOPA_RVT_GLOBAL_ALLOC)
         return dump_koopa_raw_value_global_alloc(value);
     else if (tag == KOOPA_RVT_LOAD)
         return dump_koopa_raw_value_load(value);
     else if (tag == KOOPA_RVT_STORE)
         return dump_koopa_raw_value_store(value);
+    else if (tag == KOOPA_RVT_GET_ELEM_PTR)
+        return dump_koopa_raw_value_get_elem_ptr(value);
+    else if (tag == KOOPA_RVT_GET_PTR)
+        return dump_koopa_raw_value_get_ptr(value);
     else if (tag == KOOPA_RVT_BRANCH)
         return dump_koopa_raw_value_branch(value);
     else if (tag == KOOPA_RVT_JUMP)
@@ -233,59 +340,14 @@ int TargetCodeGenerator::dump_koopa_raw_value(koopa_raw_value_t value) {
 
 int TargetCodeGenerator::dump_koopa_raw_value_binary(koopa_raw_value_t value) {
     auto op = value->kind.data.binary.op;
-    std::string lhs, rhs;
-    // t0 = t1 op t2
+    std::string lhs = "t1", rhs = "t2";
 
-    // find lhs operand, assign a register if necessary
     auto lhs_val = value->kind.data.binary.lhs;
-    if (lhs_val->kind.tag == KOOPA_RVT_BINARY) {
-        // binary: load from stack
-        auto offset = runtime_stack.top().get_offset(lhs_val);
-        dump_lw("t1", offset);
-        lhs = "t1";
-    } else if (lhs_val->kind.tag == KOOPA_RVT_INTEGER) {
-        auto lhs_int = lhs_val->kind.data.integer.value;
-        dump_riscv_inst("li", "t1", std::to_string(lhs_int));
-        lhs = "t1";
-    } else if (lhs_val->kind.tag == KOOPA_RVT_LOAD) {
-        auto offset = runtime_stack.top().get_offset(lhs_val);
-        dump_lw("t1", offset);
-        lhs = "t1";
-    } else if (lhs_val->kind.tag == KOOPA_RVT_CALL) {
-        auto offset = runtime_stack.top().get_offset(lhs_val);
-        dump_lw("t1", offset);
-        lhs = "t1";
-    } else {
-        auto tag = to_koopa_raw_value_tag(lhs_val->kind.tag);
-        std::cerr << "BINARY val type: " << tag << std::endl;
-        assert(false);
-    }
-
-    // find rhs operand
-    // imm format is available for andi/ori/xori/addi
+    assert(load_value_to_reg(lhs_val, lhs));
     auto rhs_val = value->kind.data.binary.rhs;
-    bool rhs_imm = false;  // TODO: simplify rhs imm
-    if (rhs_val->kind.tag == KOOPA_RVT_BINARY) {
-        // binary: load from stack
-        auto offset = runtime_stack.top().get_offset(rhs_val);
-        dump_lw("t2", offset);
-        rhs = "t2";
-    } else if (rhs_val->kind.tag == KOOPA_RVT_INTEGER) {
-        auto rhs_int = rhs_val->kind.data.integer.value;
-        dump_riscv_inst("li", "t2", std::to_string(rhs_int));
-        rhs = "t2";
-    } else if (rhs_val->kind.tag == KOOPA_RVT_LOAD) {
-        auto offset = runtime_stack.top().get_offset(rhs_val);
-        dump_lw("t2", offset);
-        rhs = "t2";
-    } else if (rhs_val->kind.tag == KOOPA_RVT_CALL) {
-        auto offset = runtime_stack.top().get_offset(rhs_val);
-        dump_lw("t2", offset);
-        rhs = "t2";
-    } else {
-        std::cerr << "BINARY val type: " << rhs_val->kind.tag << std::endl;
-        assert(false);
-    }
+    assert(load_value_to_reg(rhs_val, rhs));
+
+    // TODO: use i instr to simplify!
 
     // given op type, dump the value
     auto reg = "t0";
@@ -307,7 +369,6 @@ int TargetCodeGenerator::dump_koopa_raw_value_binary(koopa_raw_value_t value) {
         dump_riscv_inst("xori", reg, reg, "1");
     } else if (op == KOOPA_RBO_ADD) {
         std::string inst = "add";
-        if (rhs_imm) inst += "i";
         dump_riscv_inst(inst, reg, lhs, rhs);
     } else if (op == KOOPA_RBO_SUB) {
         dump_riscv_inst("sub", reg, lhs, rhs);
@@ -319,15 +380,12 @@ int TargetCodeGenerator::dump_koopa_raw_value_binary(koopa_raw_value_t value) {
         dump_riscv_inst("rem", reg, lhs, rhs);
     } else if (op == KOOPA_RBO_AND) {
         std::string inst = "and";
-        if (rhs_imm) inst += "i";
         dump_riscv_inst(inst, reg, lhs, rhs);
     } else if (op == KOOPA_RBO_OR) {
         std::string inst = "or";
-        if (rhs_imm) inst += "i";
         dump_riscv_inst(inst, reg, lhs, rhs);
     } else if (op == KOOPA_RBO_XOR) {
         std::string inst = "xor";
-        if (rhs_imm) inst += "i";
         dump_riscv_inst(inst, reg, lhs, rhs);
     } else if (op == KOOPA_RBO_SHL) {
         dump_riscv_inst("shl", reg, lhs, rhs);
@@ -341,77 +399,65 @@ int TargetCodeGenerator::dump_koopa_raw_value_binary(koopa_raw_value_t value) {
     }
 
     // write the result
-    auto offset = runtime_stack.top().get_offset(value);
+    auto offset = runtime_stack.top().get_koopa_value(value).offset;
     dump_sw(reg, offset);
 
     return 0;
 }
 
 int TargetCodeGenerator::dump_koopa_raw_value_load(koopa_raw_value_t value) {
-    // store the return value back on stack, kind of stupid...
-    auto src = value->kind.data.load.src;
-    if (src->kind.tag == KOOPA_RVT_STORE) {
-        auto src_offset = runtime_stack.top().get_offset(src);
-        dump_lw("t0", src_offset);
-    } else if (src->kind.tag == KOOPA_RVT_ALLOC) {
-        auto src_offset = runtime_stack.top().get_offset(src);
-        dump_lw("t0", src_offset);
-    } else if (src->kind.tag == KOOPA_RVT_GLOBAL_ALLOC) {
-        dump_riscv_inst("la", "t0", src->name + 1);
-        dump_riscv_inst("lw", "t0", "0(t0)");
-    } else {
-        auto tag = to_koopa_raw_value_tag(src->kind.tag);
-        std::cerr << "Load: invalid type " << tag << std::endl;
-        assert(false);
-    }
+    // dereference the pointer
+    std::string reg = "t0";
 
-    // store onto stack
-    auto dst_offset = runtime_stack.top().get_offset(value);
-    dump_sw("t0", dst_offset);
+    auto src = value->kind.data.load.src;
+    assert(load_value_to_reg(src, reg));
+
+    dump_riscv_inst("lw", reg, "0(" + reg + ")");
+
+    // record value result onto stack
+    auto val_offset = runtime_stack.top().get_koopa_value(value).offset;
+    dump_sw(reg, val_offset);
     return 0;
 }
 
 int TargetCodeGenerator::dump_koopa_raw_value_store(koopa_raw_value_t value) {
-    // load value from stack, and put back to dest ...
     auto src = value->kind.data.store.value;
-    if (src->kind.tag == KOOPA_RVT_INTEGER) {
-        int src_val = src->kind.data.integer.value;
-        dump_riscv_inst("li", "t0", std::to_string(src_val));
-    } else if (src->kind.tag == KOOPA_RVT_BINARY) {
-        auto offset = runtime_stack.top().get_offset(src);
-        dump_lw("t0", offset);
-    } else if (src->kind.tag == KOOPA_RVT_FUNC_ARG_REF) {
-        auto index = src->kind.data.func_arg_ref.index;
-        if (index < 8) {
-            // this, of course, could be optimized
-            std::string reg = "a" + std::to_string(index);
-            dump_riscv_inst("mv", "t0", reg);
-        } else {
-            // prologue should set up s0
-            int offset = (index - 8) * 4;
-            dump_lw("t0", offset, "s0");
-        }
-    } else if (src->kind.tag == KOOPA_RVT_CALL) {
-        // func call inst should put result back on stack
-        auto offset = runtime_stack.top().get_offset(src);
-        dump_lw("t0", offset);
-    } else {
-        auto tag = to_koopa_raw_value_tag(src->kind.tag);
-        std::cerr << "STORE src type: " << tag << std::endl;
-        assert(false);
-    }
-
-    // dump to dst
     auto dst = value->kind.data.store.dest;
-    if (dst->kind.tag == KOOPA_RVT_ALLOC) {
-        auto dst_offset = runtime_stack.top().get_offset(dst);
-        dump_sw("t0", dst_offset);
-    } else if (dst->kind.tag == KOOPA_RVT_GLOBAL_ALLOC) {
-        dump_riscv_inst("la", "t4", dst->name + 1);
-        dump_riscv_inst("sw", "t0", "0(t4)");
+
+    assert(dst->ty->tag == KOOPA_RTT_POINTER);
+    auto dst_base_type = dst->ty->data.pointer.base;
+
+    if (dst_base_type->tag == KOOPA_RTT_ARRAY) {
+        // local array initialization
+        auto offset = runtime_stack.top().get_alloc_memory(dst).offset;
+        dump_alloc_initializer(src, offset);
+
+    } else if (dst_base_type->tag == KOOPA_RTT_INT32 ||
+               dst_base_type->tag == KOOPA_RTT_POINTER) {
+        std::string src_reg = "t0";  // what need to be stored
+        if (src->kind.tag == KOOPA_RVT_FUNC_ARG_REF) {
+            auto index = src->kind.data.func_arg_ref.index;
+            if (index < 8) {
+                src_reg = "a" + std::to_string(index);
+            } else {
+                // assume s0 has been set up
+                int offset = (index - 8) * 4;
+                dump_lw(src_reg, offset, "s0");
+            }
+        } else if (src->kind.tag == KOOPA_RVT_ZERO_INIT) {
+            dump_riscv_inst("li", src_reg, std::to_string(0));
+        } else {
+            assert(load_value_to_reg(src, src_reg));
+        }
+
+        // load dst address
+        std::string dst_reg = "t6";
+        assert(load_value_to_reg(dst, dst_reg));
+
+        dump_riscv_inst("sw", src_reg, "0(" + dst_reg + ")");
+
     } else {
-        auto tag = to_koopa_raw_value_tag(src->kind.tag);
-        std::cerr << "Store: invalid type " << tag << std::endl;
+        std::cerr << "Store: invalid dst base type" << std::endl;
         assert(false);
     }
     return 0;
@@ -421,23 +467,7 @@ int TargetCodeGenerator::dump_koopa_raw_value_return(koopa_raw_value_t value) {
     // move operand to a0
     auto ret_val = value->kind.data.ret.value;
     if (ret_val != nullptr) {
-        if (ret_val->kind.tag == KOOPA_RVT_BINARY) {
-            auto offset = runtime_stack.top().get_offset(ret_val);
-            dump_lw("a0", offset);
-        } else if (ret_val->kind.tag == KOOPA_RVT_INTEGER) {
-            auto ret = std::to_string(ret_val->kind.data.integer.value);
-            dump_riscv_inst("li", "a0", ret);
-        } else if (ret_val->kind.tag == KOOPA_RVT_LOAD) {
-            auto offset = runtime_stack.top().get_offset(ret_val);
-            dump_lw("a0", offset);
-        } else if (ret_val->kind.tag == KOOPA_RVT_CALL) {
-            auto offset = runtime_stack.top().get_offset(ret_val);
-            dump_lw("a0", offset);
-        } else {
-            auto tag = to_koopa_raw_value_tag(ret_val->kind.tag);
-            std::cerr << "RETURN val type: " << tag << std::endl;
-            assert(false);
-        }
+        assert(load_value_to_reg(ret_val, "a0"));
     }
 
     // epilogue
@@ -461,25 +491,9 @@ int TargetCodeGenerator::dump_koopa_raw_value_return(koopa_raw_value_t value) {
 }
 
 int TargetCodeGenerator::dump_koopa_raw_value_branch(koopa_raw_value_t value) {
-    std::string reg = "t3";
+    std::string reg = "t0";
     auto cond = value->kind.data.branch.cond;
-    if (cond->kind.tag == KOOPA_RVT_INTEGER) {
-        dump_riscv_inst("li", reg,
-                        std::to_string(cond->kind.data.integer.value));
-    } else if (cond->kind.tag == KOOPA_RVT_BINARY) {
-        auto offset = runtime_stack.top().get_offset(cond);
-        dump_lw(reg, offset);
-    } else if (cond->kind.tag == KOOPA_RVT_LOAD) {
-        auto offset = runtime_stack.top().get_offset(cond);
-        dump_lw(reg, offset);
-    } else if (cond->kind.tag == KOOPA_RVT_CALL) {
-        auto offset = runtime_stack.top().get_offset(cond);
-        dump_lw(reg, offset);
-    } else {
-        auto tag = to_koopa_raw_value_tag(cond->kind.tag);
-        std::cerr << "branch val type: " << tag << std::endl;
-        assert(false);
-    }
+    assert(load_value_to_reg(cond, reg));
 
     auto true_bb_name = value->kind.data.branch.true_bb->name + 1;
     auto false_bb_name = value->kind.data.branch.false_bb->name + 1;
@@ -506,24 +520,10 @@ int TargetCodeGenerator::dump_koopa_raw_value_call(koopa_raw_value_t value) {
         koopa_raw_value_t val = (koopa_raw_value_t)args.buffer[i];
         if (i < 8) {
             auto reg = "a" + std::to_string(i);
-            if (val->kind.tag == KOOPA_RVT_INTEGER) {
-                auto int_val = val->kind.data.integer.value;
-                dump_riscv_inst("li", reg, std::to_string(int_val));
-            } else {
-                // for simplicity, assume it's on the stack
-                auto offset = runtime_stack.top().get_offset(val);
-                dump_lw(reg, offset);
-            }
+            load_value_to_reg(val, reg);
         } else {
-            auto reg = "t5";  // nobody use it for now
-            if (val->kind.tag == KOOPA_RVT_INTEGER) {
-                auto int_val = val->kind.data.integer.value;
-                dump_riscv_inst("li", reg, std::to_string(int_val));
-            } else {
-                // for simplicity, assume it's on the stack
-                auto offset = runtime_stack.top().get_offset(val);
-                dump_lw(reg, offset);
-            }
+            auto reg = "t0";  // nobody use it for now
+            load_value_to_reg(val, reg);
             dump_sw(reg, (i - 8) * 4);
         }
     }
@@ -533,7 +533,7 @@ int TargetCodeGenerator::dump_koopa_raw_value_call(koopa_raw_value_t value) {
     // set return value if there is
     auto ret_type = value->ty->tag;
     if (ret_type == KOOPA_RTT_INT32) {
-        auto offset = runtime_stack.top().get_offset(value);
+        auto offset = runtime_stack.top().get_koopa_value(value).offset;
         dump_sw("a0", offset);
     } else if (ret_type == KOOPA_RTT_UNIT) {
     } else {
@@ -545,6 +545,24 @@ int TargetCodeGenerator::dump_koopa_raw_value_call(koopa_raw_value_t value) {
     return 0;
 }
 
+int TargetCodeGenerator::dump_koopa_raw_value_alloc(koopa_raw_value_t value) {
+    // return the alloced address
+    std::string tmp_reg = "t0";
+
+    auto alloc_info = runtime_stack.top().get_alloc_memory(value);
+    if (alloc_info.offset <= 2047) {
+        dump_riscv_inst("addi", tmp_reg, "sp",
+                        std::to_string(alloc_info.offset));
+    } else {
+        dump_riscv_inst("li", tmp_reg, std::to_string(alloc_info.offset));
+        dump_riscv_inst("add", tmp_reg, tmp_reg, "sp");
+    }
+
+    auto val_offset = runtime_stack.top().get_koopa_value(value).offset;
+    dump_sw(tmp_reg, val_offset);
+    return 0;
+}
+
 int TargetCodeGenerator::dump_koopa_raw_value_global_alloc(
     koopa_raw_value_t value) {
     out << "  .data" << std::endl;
@@ -552,17 +570,66 @@ int TargetCodeGenerator::dump_koopa_raw_value_global_alloc(
     out << value->name + 1 << ":" << std::endl;
 
     auto init = value->kind.data.global_alloc.init;
-    auto init_type = init->kind.tag;
-    if (init_type == KOOPA_RVT_ZERO_INIT) {
-        out << "  .zero 4" << std::endl;
-    } else if (init_type == KOOPA_RVT_INTEGER) {
-        out << "  .word " << init->kind.data.integer.value << std::endl;
-    } else {
-        auto tag = to_koopa_raw_value_tag(init_type);
-        std::cerr << "Global alloc: unknown tag " << tag << std::endl;
-        assert(false);
-    }
+    dump_global_alloc_initializer(init);
 
     out << std::endl;
+    return 0;
+}
+
+int TargetCodeGenerator::dump_koopa_raw_value_get_elem_ptr(
+    koopa_raw_value_t value) {
+    std::string base_reg = "t0";
+    std::string index_reg = "t1";
+    std::string elem_size_reg = "t2";
+
+    // load base ptr address
+    auto src = value->kind.data.get_ptr.src;
+    load_value_to_reg(src, base_reg);
+
+    // calculate index
+    auto index = value->kind.data.get_elem_ptr.index;
+    assert(load_value_to_reg(index, index_reg));
+
+    // elem size
+    assert(src->ty->tag == KOOPA_RTT_POINTER);
+    auto ptr_base_ty = src->ty->data.pointer.base;
+    assert(ptr_base_ty->tag == KOOPA_RTT_ARRAY);
+    auto elem_ty = ptr_base_ty->data.array.base;
+    int elem_size = get_koopa_raw_value_size(elem_ty);
+    dump_riscv_inst("li", elem_size_reg, std::to_string(elem_size));
+
+    dump_riscv_inst("mul", index_reg, index_reg, elem_size_reg);
+    dump_riscv_inst("add", base_reg, base_reg, index_reg);
+
+    // record value result
+    auto val_offset = runtime_stack.top().get_koopa_value(value).offset;
+    dump_sw(base_reg, val_offset);
+    return 0;
+}
+
+int TargetCodeGenerator::dump_koopa_raw_value_get_ptr(koopa_raw_value_t value) {
+    std::string base_reg = "t0";
+    std::string index_reg = "t1";
+    std::string elem_size_reg = "t2";
+
+    // load base ptr address
+    auto src = value->kind.data.get_ptr.src;
+    load_value_to_reg(src, base_reg);
+
+    // calculate index
+    auto index = value->kind.data.get_ptr.index;
+    assert(load_value_to_reg(index, index_reg));
+
+    // base ptr's base (...) size
+    assert(src->ty->tag == KOOPA_RTT_POINTER);
+    auto ptr_base_ty = src->ty->data.pointer.base;
+    int elem_size = get_koopa_raw_value_size(ptr_base_ty);
+    dump_riscv_inst("li", elem_size_reg, std::to_string(elem_size));
+
+    dump_riscv_inst("mul", index_reg, index_reg, elem_size_reg);
+    dump_riscv_inst("add", base_reg, base_reg, index_reg);
+
+    auto val_offset = runtime_stack.top().get_koopa_value(value).offset;
+    dump_sw(base_reg, val_offset);
     return 0;
 }
